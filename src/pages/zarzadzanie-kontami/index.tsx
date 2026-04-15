@@ -8,10 +8,5 @@ interface ZarzadzanieKontamiPageProps {
 }
 
 export default function ZarzadzanieKontamiPage({ db, onAddUser }: ZarzadzanieKontamiPageProps) {
-  return (
-    <ZarzadzanieKontamiSection
-      users={db.users.map((x) => `${x.name} (${x.role})`)}
-      onAddUser={onAddUser}
-    />
-  );
+  return <ZarzadzanieKontamiSection users={db.users} onAddUser={onAddUser} />;
 }

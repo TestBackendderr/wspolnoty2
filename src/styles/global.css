@@ -325,6 +325,81 @@ body {
   padding: 12px 14px;
 }
 
+.users-table-wrap {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.users-table th {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+  background: #fafafa;
+  padding: 12px 14px;
+}
+
+.users-table td {
+  padding: 12px 14px;
+}
+
+.user-role-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.user-role-badge.role-admin {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.user-role-badge.role-opiekun {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.sales-plan-panel {
+  padding: 12px 0 0;
+}
+
+.sales-plan-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 16px 12px;
+}
+
+.sales-plan-header h3 {
+  margin: 0;
+  font-size: 38px;
+}
+
+.sales-plan-quarter-select {
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  height: 38px;
+  padding: 0 16px;
+  background: #fff;
+}
+
+.sales-plan-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  background: #fafafa;
+  padding: 12px 14px;
+}
+
+.sales-plan-table td {
+  padding: 12px 14px;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

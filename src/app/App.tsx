@@ -386,7 +386,7 @@ function CurrentPage({
     case 'mapa':
       return <MapaPolskiPage db={db} />;
     case 'sales-plans':
-      return <PlanySprzedazowePage />;
+      return <PlanySprzedazowePage cooperatives={visibleCooperatives} caregivers={db.caregivers} />;
     case 'users-management':
       return <ZarzadzanieKontamiPage db={db} onAddUser={onAddUser} />;
     case 'calculator':
@@ -394,7 +394,7 @@ function CurrentPage({
     case 'my-cooperatives':
       return <SpoldzielniePage cooperatives={visibleCooperatives} onAddCooperative={onAddCooperative} />;
     case 'my-plan':
-      return <PlanySprzedazowePage />;
+      return <PlanySprzedazowePage cooperatives={visibleCooperatives} caregivers={db.caregivers} />;
     default:
       return null;
   }
