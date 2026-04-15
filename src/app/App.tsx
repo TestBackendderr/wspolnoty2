@@ -226,7 +226,7 @@ function CurrentPage({ view, db, visibleCooperatives }: CurrentPageProps) {
     case 'spoldzielnie':
       return <SpoldzielniePage cooperatives={visibleCooperatives} />;
     case 'mapa':
-      return <MapaPolskiPage />;
+      return <MapaPolskiPage db={db} />;
     case 'sales-plans':
       return <PlanySprzedazowePage />;
     case 'users-management':

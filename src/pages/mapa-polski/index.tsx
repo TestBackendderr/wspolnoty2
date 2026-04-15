@@ -1,5 +1,10 @@
 import MapaPolskiSection from '@/components/mapa-polski/MapaPolskiSection';
+import type { AppDatabase } from '@/types/domain';
 
-export default function MapaPolskiPage() {
-  return <MapaPolskiSection />;
+interface MapaPolskiPageProps {
+  db: AppDatabase;
+}
+
+export default function MapaPolskiPage({ db }: MapaPolskiPageProps) {
+  return <MapaPolskiSection db={db} />;
 }
