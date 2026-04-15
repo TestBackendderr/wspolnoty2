@@ -53,7 +53,6 @@ export default function App() {
   const [error, setError] = useState<string>('');
   const [view, setView] = useState<ViewId>('dashboard');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [addModalOpen, setAddModalOpen] = useState(false);
 
   const db = readDatabase();
   const isAuthenticated = useMemo(() => currentUser !== null, [currentUser]);
@@ -174,9 +173,6 @@ export default function App() {
             <button className="icon-btn" onClick={() => setView('mapa')} type="button">
               Mapa Polski
             </button>
-            <button className="primary-btn" onClick={() => setAddModalOpen(true)} type="button">
-              Dodaj nowy
-            </button>
           </div>
         </header>
 
@@ -201,20 +197,6 @@ export default function App() {
         </main>
       </section>
 
-      {addModalOpen ? (
-        <div className="modal-backdrop" onClick={() => setAddModalOpen(false)}>
-          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
-            <h3>Dodaj nowy wpis</h3>
-            <p>
-              Frontend React jest gotowy. Nastepny krok to podpiecie pelnych formularzy CRUD do
-              wszystkich sekcji.
-            </p>
-            <button className="primary-btn" onClick={() => setAddModalOpen(false)} type="button">
-              Zamknij
-            </button>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

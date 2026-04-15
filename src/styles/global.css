@@ -212,6 +212,25 @@ body {
   gap: 18px;
 }
 
+.add-entity-btn {
+  justify-self: start;
+  background: #6d28d9;
+  color: #fff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 999px;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.add-entity-btn span:first-child {
+  font-size: 18px;
+  line-height: 1;
+}
+
 .panel {
   background: #fff;
   border-radius: 20px;
@@ -317,6 +336,30 @@ td {
   background: #fff;
   border-radius: 20px;
   padding: 20px;
+}
+
+.add-entry-form {
+  display: grid;
+  gap: 12px;
+}
+
+.add-entry-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.add-entry-form input {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.add-entry-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 @media (max-width: 1100px) {

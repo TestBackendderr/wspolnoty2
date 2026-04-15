@@ -1,4 +1,5 @@
 import CooperativesTable from '@/components/common/CooperativesTable';
+import AddEntryModal from '@/components/common/AddEntryModal';
 import type { AppDatabase, Cooperative } from '@/types/domain';
 
 interface DashboardSectionProps {
@@ -9,6 +10,15 @@ interface DashboardSectionProps {
 export default function DashboardSection({ db, cooperatives }: DashboardSectionProps) {
   return (
     <>
+      <AddEntryModal
+        buttonLabel="Dodaj wpis dashboard"
+        modalTitle="Dodaj nowy wpis dashboard"
+        fields={[
+          { id: 'dashboard-title', label: 'Tytul wpisu', placeholder: 'np. Aktualizacja' },
+          { id: 'dashboard-owner', label: 'Odpowiedzialny', placeholder: 'np. Jan Kowalski' },
+          { id: 'dashboard-date', label: 'Data', type: 'date' },
+        ]}
+      />
       <section className="stats-grid">
         <article className="stat-card">
           <p>Spoldzielnie</p>
