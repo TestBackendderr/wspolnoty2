@@ -1,3 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css');
+
 :root {
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   color: #1f2937;
@@ -6,6 +9,7 @@
 
 * {
   box-sizing: border-box;
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
 body {
@@ -121,6 +125,16 @@ body {
   font-size: 15px;
 }
 
+.sidebar-link-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar-link-content i {
+  width: 20px;
+}
+
 .sidebar-link:hover,
 .sidebar-link.active {
   background: #5b21b6;
@@ -188,15 +202,51 @@ body {
   cursor: pointer;
 }
 
-.notifications-panel {
-  margin: 12px 24px 0;
+.notification-icon-btn {
+  position: relative;
+  width: 38px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+}
+
+.notifications-popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  background: rgb(15 23 42 / 0.2);
+}
+
+.notifications-popover {
+  position: absolute;
+  top: 74px;
+  right: 24px;
+  width: min(380px, calc(100vw - 32px));
   background: #fff;
   border-radius: 16px;
   border: 1px solid #e5e7eb;
   padding: 14px;
+  box-shadow: 0 18px 36px rgb(15 23 42 / 20%);
 }
 
-.notifications-panel h4 {
+.notifications-popover h4 {
   margin: 0 0 10px;
 }
 
@@ -303,6 +353,112 @@ td {
   display: grid;
   gap: 12px;
   max-width: 420px;
+}
+
+.calc-container {
+  border: 1px solid #3e0387;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.calc-container h3 {
+  margin: 0;
+  padding: 18px 20px;
+  background: #3e0387;
+  color: #fff;
+}
+
+.calc-tab {
+  overflow: hidden;
+  border-bottom: 1px solid #3e0387;
+  background-color: #f7f7f7;
+}
+
+.calc-tab button {
+  background-color: inherit;
+  border: none;
+  cursor: pointer;
+  padding: 14px 20px;
+  color: #3e0387;
+}
+
+.calc-tab button.active {
+  background-color: #3e0387;
+  color: #fff;
+}
+
+.calc-tabcontent {
+  display: block;
+}
+
+.calc-section {
+  padding: 20px;
+  border-bottom: 1px solid #ede9fe;
+}
+
+.calc-section h2 {
+  margin: 0 0 12px;
+  color: #3e0387;
+  font-size: 20px;
+}
+
+.calc-label {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.calc-input,
+.calc-select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #3e0387;
+  border-radius: 6px;
+  font-size: 15px;
+  background-color: #f9f9f9;
+}
+
+.calc-button {
+  background-color: #3e0387;
+  color: #fff;
+  border: none;
+  padding: 12px 28px;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.calc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+  font-size: 13px;
+}
+
+.calc-table th,
+.calc-table td {
+  border: 1px solid #3e0387;
+  padding: 8px;
+  text-align: right;
+  vertical-align: middle;
+}
+
+.calc-table th {
+  background-color: #3e0387;
+  color: #fff;
+  text-align: center;
+}
+
+.positive {
+  color: #15803d;
+  font-weight: 600;
+}
+
+.negative {
+  color: #dc2626;
+  font-weight: 600;
 }
 
 .calc-grid label {

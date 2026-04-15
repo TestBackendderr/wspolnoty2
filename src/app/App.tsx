@@ -27,6 +27,7 @@ type ViewId =
 interface NavItem {
   id: ViewId;
   label: string;
+  iconClass: string;
 }
 
 const roleLabel: Record<UserRole, string> = {
@@ -106,20 +107,20 @@ export default function App() {
 
   const navItems: NavItem[] = isCaregiver
     ? [
-        { id: 'dashboard', label: 'Dashboard' },
-        { id: 'my-cooperatives', label: 'Moje spoldzielnie' },
-        { id: 'my-plan', label: 'Moj plan sprzedazy' },
-        { id: 'calculator', label: 'Kalkulator PV + Magazyn' },
+        { id: 'dashboard', label: 'Dashboard', iconClass: 'fa-solid fa-chart-pie' },
+        { id: 'my-cooperatives', label: 'Moje spoldzielnie', iconClass: 'fa-solid fa-bolt' },
+        { id: 'my-plan', label: 'Moj plan sprzedazy', iconClass: 'fa-solid fa-chart-line' },
+        { id: 'calculator', label: 'Kalkulator PV + Magazyn', iconClass: 'fa-solid fa-calculator' },
       ]
     : [
-        { id: 'dashboard', label: 'Dashboard' },
-        { id: 'opiekunowie', label: 'Opiekunowie' },
-        { id: 'tereny', label: 'Tereny' },
-        { id: 'spoldzielnie', label: 'Spoldzielnie' },
-        { id: 'mapa', label: 'Mapa Polski' },
-        { id: 'sales-plans', label: 'Plany sprzedazowe' },
-        { id: 'calculator', label: 'Kalkulator PV + Magazyn' },
-        { id: 'users-management', label: 'Zarzadzanie kontami' },
+        { id: 'dashboard', label: 'Dashboard', iconClass: 'fa-solid fa-chart-pie' },
+        { id: 'opiekunowie', label: 'Opiekunowie', iconClass: 'fa-solid fa-user' },
+        { id: 'tereny', label: 'Tereny', iconClass: 'fa-solid fa-map-marker-alt' },
+        { id: 'spoldzielnie', label: 'Spoldzielnie', iconClass: 'fa-solid fa-bolt' },
+        { id: 'mapa', label: 'Mapa Polski', iconClass: 'fa-solid fa-map' },
+        { id: 'sales-plans', label: 'Plany sprzedazowe', iconClass: 'fa-solid fa-chart-line' },
+        { id: 'calculator', label: 'Kalkulator PV + Magazyn', iconClass: 'fa-solid fa-calculator' },
+        { id: 'users-management', label: 'Zarzadzanie kontami', iconClass: 'fa-solid fa-users-cog' },
       ];
 
   const visibleCooperatives = isCaregiver
@@ -144,7 +145,10 @@ export default function App() {
               onClick={() => setView(item.id)}
               type="button"
             >
-              {item.label}
+              <span className="sidebar-link-content">
+                <i className={item.iconClass} aria-hidden="true" />
+                <span>{item.label}</span>
+              </span>
             </button>
           ))}
         </nav>
@@ -164,11 +168,13 @@ export default function App() {
           <h2>{pageTitles[view]}</h2>
           <div className="topbar-actions">
             <button
-              className="icon-btn"
+              aria-label="Powiadomienia"
+              className="icon-btn notification-icon-btn"
               onClick={() => setNotificationsOpen((prev) => !prev)}
               type="button"
             >
-              Powiadomienia {unread > 0 ? `(${unread})` : ''}
+              <i className="fa-solid fa-bell" aria-hidden="true" />
+              {unread > 0 ? <span className="notification-badge">{unread}</span> : null}
             </button>
             <button className="icon-btn" onClick={() => setView('mapa')} type="button">
               Mapa Polski
@@ -177,18 +183,20 @@ export default function App() {
         </header>
 
         {notificationsOpen ? (
-          <div className="notifications-panel">
-            <h4>Powiadomienia</h4>
-            {currentUser.notifications.length === 0 ? (
-              <p>Brak powiadomien</p>
-            ) : (
-              currentUser.notifications.map((n) => (
-                <div key={n.id} className="notification-row">
-                  <strong>{n.message}</strong>
-                  <small>{n.timestamp}</small>
-                </div>
-              ))
-            )}
+          <div className="notifications-popover-backdrop" onClick={() => setNotificationsOpen(false)}>
+            <div className="notifications-popover" onClick={(event) => event.stopPropagation()}>
+              <h4>Powiadomienia</h4>
+              {currentUser.notifications.length === 0 ? (
+                <p>Brak powiadomien</p>
+              ) : (
+                currentUser.notifications.map((n) => (
+                  <div key={n.id} className="notification-row">
+                    <strong>{n.message}</strong>
+                    <small>{n.timestamp}</small>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         ) : null}
 
