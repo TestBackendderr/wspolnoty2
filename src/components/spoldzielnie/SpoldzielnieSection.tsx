@@ -1,12 +1,17 @@
 import CooperativesTable from '@/components/common/CooperativesTable';
 import AddEntryModal from '@/components/common/AddEntryModal';
+import type { AddEntryValues } from '@/components/common/AddEntryModal';
 import type { Cooperative } from '@/types/domain';
 
 interface SpoldzielnieSectionProps {
   cooperatives: Cooperative[];
+  onAddCooperative: (values: AddEntryValues) => void;
 }
 
-export default function SpoldzielnieSection({ cooperatives }: SpoldzielnieSectionProps) {
+export default function SpoldzielnieSection({
+  cooperatives,
+  onAddCooperative,
+}: SpoldzielnieSectionProps) {
   return (
     <>
       <AddEntryModal
@@ -18,6 +23,7 @@ export default function SpoldzielnieSection({ cooperatives }: SpoldzielnieSectio
           { id: 'coop-voivodeship', label: 'Wojewodztwo', placeholder: 'Mazowieckie' },
           { id: 'coop-planned-power', label: 'Moc planowana (kWp)', type: 'number', placeholder: '100' },
         ]}
+        onSubmit={onAddCooperative}
       />
       <section className="panel">
         <h3>Spoldzielnie energetyczne</h3>

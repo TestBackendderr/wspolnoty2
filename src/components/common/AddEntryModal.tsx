@@ -1,5 +1,7 @@
 import { useState } from 'react';
 
+export type AddEntryValues = Record<string, string>;
+
 interface AddEntryModalProps {
   buttonLabel: string;
   modalTitle: string;
@@ -9,13 +11,24 @@ interface AddEntryModalProps {
     type?: 'text' | 'number' | 'email' | 'date';
     placeholder?: string;
   }>;
+  onSubmit?: (values: AddEntryValues) => void;
 }
 
-export default function AddEntryModal({ buttonLabel, modalTitle, fields }: AddEntryModalProps) {
+export default function AddEntryModal({
+  buttonLabel,
+  modalTitle,
+  fields,
+  onSubmit,
+}: AddEntryModalProps) {
   const [open, setOpen] = useState(false);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const values = Object.fromEntries(
+      Array.from(formData.entries()).map(([key, value]) => [key, String(value)]),
+    ) as AddEntryValues;
+    onSubmit?.(values);
     event.currentTarget.reset();
     setOpen(false);
   };

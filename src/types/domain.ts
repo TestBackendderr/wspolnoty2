@@ -36,10 +36,18 @@ export interface Cooperative {
   members: CooperativeMember[];
 }
 
+export interface Area {
+  id: number;
+  type: string;
+  name: string;
+  postalCode: string;
+  voivodeship: string;
+}
+
 export interface AppDatabase {
   users: User[];
   caregivers: User[];
-  areas: Array<{ id: number; name: string; voivodeship: string }>;
+  areas: Area[];
   cooperatives: Cooperative[];
   salesPlans: Array<Record<string, unknown>>;
 }

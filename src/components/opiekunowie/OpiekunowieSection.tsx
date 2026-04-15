@@ -1,11 +1,13 @@
 import SimpleListPanel from '@/components/common/SimpleListPanel';
 import AddEntryModal from '@/components/common/AddEntryModal';
+import type { AddEntryValues } from '@/components/common/AddEntryModal';
 
 interface OpiekunowieSectionProps {
   caregivers: string[];
+  onAddCaregiver: (values: AddEntryValues) => void;
 }
 
-export default function OpiekunowieSection({ caregivers }: OpiekunowieSectionProps) {
+export default function OpiekunowieSection({ caregivers, onAddCaregiver }: OpiekunowieSectionProps) {
   return (
     <>
       <AddEntryModal
@@ -17,6 +19,7 @@ export default function OpiekunowieSection({ caregivers }: OpiekunowieSectionPro
           { id: 'caregiver-email', label: 'Email', type: 'email', placeholder: 'jan@example.com' },
           { id: 'caregiver-phone', label: 'Telefon', placeholder: '+48 500 000 000' },
         ]}
+        onSubmit={onAddCaregiver}
       />
       <SimpleListPanel title="Opiekunowie" items={caregivers} />
     </>

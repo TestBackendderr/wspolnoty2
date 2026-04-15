@@ -292,10 +292,239 @@ body {
   margin: 0 0 14px;
 }
 
+.section-head-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.section-head-with-action .add-entity-btn {
+  justify-self: auto;
+  padding: 8px 16px;
+  font-size: 12px;
+}
+
+.areas-table-wrap {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.areas-table th {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+  background: #fafafa;
+  padding: 12px 14px;
+}
+
+.areas-table td {
+  padding: 12px 14px;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dashboard-kpi-card {
+  grid-column: span 3;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 8%);
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.dashboard-kpi-card p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.dashboard-kpi-card strong {
+  font-size: 46px;
+  line-height: 1;
+}
+
+.dashboard-kpi-card small {
+  color: #16a34a;
+  font-size: 13px;
+}
+
+.dashboard-panel {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 10px 28px rgb(15 23 42 / 8%);
+  padding: 18px;
+}
+
+.dashboard-panel h3 {
+  margin: 0 0 14px;
+}
+
+.dashboard-members-panel {
+  grid-column: span 4;
+}
+
+.dashboard-voivodeship-panel {
+  grid-column: span 8;
+}
+
+.members-donut-layout {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 18px;
+  align-items: center;
+}
+
+.members-donut {
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.members-donut-center {
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  box-shadow: inset 0 0 0 1px #f3f4f6;
+}
+
+.members-donut-center strong {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.members-donut-center span {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.members-legend {
+  display: grid;
+  gap: 10px;
+}
+
+.members-legend-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.members-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.members-legend-dot.active {
+  background: #10b981;
+}
+
+.members-legend-dot.registering {
+  background: #f59e0b;
+}
+
+.members-legend-dot.inactive {
+  background: #6b7280;
+}
+
+.voivodeship-bars {
+  display: grid;
+  gap: 10px;
+}
+
+.voivodeship-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 30px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.voivodeship-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: #ede9fe;
+  overflow: hidden;
+}
+
+.voivodeship-bar-fill {
+  height: 100%;
+  background: #6d28d9;
+}
+
+.latest-coops-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.latest-coop-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.latest-coop-card p,
+.latest-coop-card small {
+  margin: 0;
+  color: #6b7280;
+}
+
+.latest-coop-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.status-badge {
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.status-aktywna {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.status-planowana {
+  background: #fef9c3;
+  color: #ca8a04;
+}
+
+.status-w-trakcie-tworzenia {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.status-zawieszona {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .stat-card {
@@ -629,5 +858,21 @@ td {
 
   .sidebar {
     min-height: auto;
+  }
+
+  .dashboard-kpi-card,
+  .dashboard-members-panel,
+  .dashboard-voivodeship-panel {
+    grid-column: span 12;
+  }
+
+  .voivodeship-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .members-donut-layout {
+    grid-template-columns: 1fr;
+    justify-items: center;
   }
 }

@@ -37,10 +37,17 @@ export function readDatabase(): AppDatabase {
 
   try {
     const parsed = JSON.parse(raw) as Partial<AppDatabase>;
+    const normalizedAreas = (parsed.areas ?? []).map((area) => ({
+      id: area.id,
+      name: area.name,
+      voivodeship: area.voivodeship,
+      type: (area as { type?: string }).type ?? '',
+      postalCode: (area as { postalCode?: string }).postalCode ?? '',
+    }));
     return {
       users: parsed.users ?? fallbackDb.users,
       caregivers: parsed.caregivers ?? [],
-      areas: parsed.areas ?? [],
+      areas: normalizedAreas,
       cooperatives: parsed.cooperatives ?? [],
       salesPlans: parsed.salesPlans ?? [],
     };
@@ -48,6 +55,10 @@ export function readDatabase(): AppDatabase {
     localStorage.setItem(DB_STORAGE_KEY, JSON.stringify(fallbackDb));
     return fallbackDb;
   }
+}
+
+export function writeDatabase(db: AppDatabase): void {
+  localStorage.setItem(DB_STORAGE_KEY, JSON.stringify(db));
 }
 
 export function writeAuthUserId(userId: number | null): void {

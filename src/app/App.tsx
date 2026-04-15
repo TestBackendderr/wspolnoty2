@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 
 import { getCurrentUser, login, logout } from '@/services/auth';
-import { readDatabase } from '@/services/storage';
+import { readDatabase, writeDatabase } from '@/services/storage';
 import type { User, UserRole } from '@/types/domain';
+import type { AddEntryValues } from '@/components/common/AddEntryModal';
 import DashboardPage from '@/pages/dashboard';
 import OpiekunowiePage from '@/pages/opiekunowie';
 import TerenyPage from '@/pages/tereny';
@@ -51,11 +52,10 @@ const pageTitles: Record<ViewId, string> = {
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => getCurrentUser());
+  const [db, setDb] = useState(() => readDatabase());
   const [error, setError] = useState<string>('');
   const [view, setView] = useState<ViewId>('dashboard');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-
-  const db = readDatabase();
   const isAuthenticated = useMemo(() => currentUser !== null, [currentUser]);
   const isCaregiver = currentUser?.role === 'opiekun' || currentUser?.role === 'caregiver';
 
@@ -80,6 +80,113 @@ export default function App() {
     setCurrentUser(null);
     setView('dashboard');
     setNotificationsOpen(false);
+  };
+
+  const updateDatabase = (updater: (prev: typeof db) => typeof db) => {
+    setDb((prev) => {
+      const next = updater(prev);
+      writeDatabase(next);
+      return next;
+    });
+  };
+
+  const handleAddCaregiver = (values: AddEntryValues) => {
+    const firstName = (values['caregiver-first-name'] ?? '').trim();
+    const lastName = (values['caregiver-last-name'] ?? '').trim();
+    if (!firstName && !lastName) return;
+
+    const fullName = `${firstName} ${lastName}`.trim();
+    updateDatabase((prev) => {
+      const nextId = Math.max(0, ...prev.caregivers.map((x) => x.id)) + 1;
+      return {
+        ...prev,
+        caregivers: [
+          ...prev.caregivers,
+          {
+            id: nextId,
+            name: fullName || 'Nowy opiekun',
+            email: (values['caregiver-email'] ?? '').trim(),
+            password: 'opiekun',
+            role: 'opiekun',
+            notifications: [],
+          },
+        ],
+      };
+    });
+  };
+
+  const handleAddArea = (values: AddEntryValues) => {
+    const areaName = (values['area-name'] ?? '').trim();
+    if (!areaName) return;
+    updateDatabase((prev) => {
+      const nextId = Math.max(0, ...prev.areas.map((x) => x.id)) + 1;
+      return {
+        ...prev,
+        areas: [
+          ...prev.areas,
+          {
+            id: nextId,
+            type: (values['area-type'] ?? '').trim(),
+            name: areaName,
+            postalCode: (values['area-postal'] ?? '').trim(),
+            voivodeship: (values['area-voivodeship'] ?? '').trim() || 'nieokreslone',
+          },
+        ],
+      };
+    });
+  };
+
+  const handleAddCooperative = (values: AddEntryValues) => {
+    const name = (values['coop-name'] ?? '').trim();
+    if (!name) return;
+    updateDatabase((prev) => {
+      const nextId = Math.max(0, ...prev.cooperatives.map((x) => x.id)) + 1;
+      return {
+        ...prev,
+        cooperatives: [
+          ...prev.cooperatives,
+          {
+            id: nextId,
+            name,
+            address: (values['coop-address'] ?? '').trim(),
+            voivodeship: (values['coop-voivodeship'] ?? '').trim() || 'nieokreslone',
+            status: 'planowana',
+            caregiverId: null,
+            plannedPower: Number(values['coop-planned-power'] ?? 0) || 0,
+            installedPower: 0,
+            members: [],
+          },
+        ],
+      };
+    });
+  };
+
+  const handleAddUser = (values: AddEntryValues) => {
+    const name = (values['user-name'] ?? '').trim();
+    const email = (values['user-email'] ?? '').trim();
+    if (!name || !email) return;
+
+    const rawRole = (values['user-role'] ?? '').trim().toLowerCase();
+    const role: UserRole = rawRole === 'admin' ? 'admin' : 'opiekun';
+    const password = (values['user-password'] ?? '').trim() || 'haslo123';
+
+    updateDatabase((prev) => {
+      const nextId = Math.max(0, ...prev.users.map((x) => x.id)) + 1;
+      return {
+        ...prev,
+        users: [
+          ...prev.users,
+          {
+            id: nextId,
+            name,
+            email,
+            password,
+            role,
+            notifications: [],
+          },
+        ],
+      };
+    });
   };
 
   if (!isAuthenticated || currentUser === null) {
@@ -201,7 +308,15 @@ export default function App() {
         ) : null}
 
         <main className="page-content">
-          <CurrentPage view={view} db={db} visibleCooperatives={visibleCooperatives} />
+          <CurrentPage
+            view={view}
+            db={db}
+            visibleCooperatives={visibleCooperatives}
+            onAddCaregiver={handleAddCaregiver}
+            onAddArea={handleAddArea}
+            onAddCooperative={handleAddCooperative}
+            onAddUser={handleAddUser}
+          />
         </main>
       </section>
 
@@ -213,28 +328,40 @@ interface CurrentPageProps {
   view: ViewId;
   db: ReturnType<typeof readDatabase>;
   visibleCooperatives: ReturnType<typeof readDatabase>['cooperatives'];
+  onAddCaregiver: (values: AddEntryValues) => void;
+  onAddArea: (values: AddEntryValues) => void;
+  onAddCooperative: (values: AddEntryValues) => void;
+  onAddUser: (values: AddEntryValues) => void;
 }
 
-function CurrentPage({ view, db, visibleCooperatives }: CurrentPageProps) {
+function CurrentPage({
+  view,
+  db,
+  visibleCooperatives,
+  onAddCaregiver,
+  onAddArea,
+  onAddCooperative,
+  onAddUser,
+}: CurrentPageProps) {
   switch (view) {
     case 'dashboard':
       return <DashboardPage db={db} cooperatives={visibleCooperatives} />;
     case 'opiekunowie':
-      return <OpiekunowiePage db={db} />;
+      return <OpiekunowiePage db={db} onAddCaregiver={onAddCaregiver} />;
     case 'tereny':
-      return <TerenyPage db={db} />;
+      return <TerenyPage db={db} onAddArea={onAddArea} />;
     case 'spoldzielnie':
-      return <SpoldzielniePage cooperatives={visibleCooperatives} />;
+      return <SpoldzielniePage cooperatives={visibleCooperatives} onAddCooperative={onAddCooperative} />;
     case 'mapa':
       return <MapaPolskiPage db={db} />;
     case 'sales-plans':
       return <PlanySprzedazowePage />;
     case 'users-management':
-      return <ZarzadzanieKontamiPage db={db} />;
+      return <ZarzadzanieKontamiPage db={db} onAddUser={onAddUser} />;
     case 'calculator':
       return <KalkulatorPvMagazynPage />;
     case 'my-cooperatives':
-      return <SpoldzielniePage cooperatives={visibleCooperatives} />;
+      return <SpoldzielniePage cooperatives={visibleCooperatives} onAddCooperative={onAddCooperative} />;
     case 'my-plan':
       return <PlanySprzedazowePage />;
     default:
