@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { getCurrentUser, login, logout } from '@/services/auth';
 import { readDatabase, writeDatabase } from '@/services/storage';
@@ -50,12 +51,35 @@ const pageTitles: Record<ViewId, string> = {
   'my-plan': 'Moj plan sprzedazy',
 };
 
+const viewPathMap: Record<ViewId, string> = {
+  dashboard: '/dashboard',
+  opiekunowie: '/opiekunowie',
+  tereny: '/tereny',
+  spoldzielnie: '/spoldzielnie',
+  mapa: '/mapa',
+  'sales-plans': '/sales-plans',
+  'users-management': '/users-management',
+  calculator: '/calculator',
+  'my-cooperatives': '/my-cooperatives',
+  'my-plan': '/my-plan',
+};
+
+function getViewFromPathname(pathname: string): ViewId {
+  const normalizedPath = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
+  const found = (Object.entries(viewPathMap).find(([, path]) => path === normalizedPath) ?? [null])[0];
+  if (found) return found as ViewId;
+  if (normalizedPath === '/') return 'dashboard';
+  return 'dashboard';
+}
+
 export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<User | null>(() => getCurrentUser());
   const [db, setDb] = useState(() => readDatabase());
   const [error, setError] = useState<string>('');
-  const [view, setView] = useState<ViewId>('dashboard');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const view = useMemo(() => getViewFromPathname(location.pathname), [location.pathname]);
   const isAuthenticated = useMemo(() => currentUser !== null, [currentUser]);
   const isCaregiver = currentUser?.role === 'opiekun' || currentUser?.role === 'caregiver';
 
@@ -78,8 +102,15 @@ export default function App() {
   const handleLogout = () => {
     logout();
     setCurrentUser(null);
-    setView('dashboard');
+    navigate(viewPathMap.dashboard);
     setNotificationsOpen(false);
+  };
+
+  const openView = (nextView: ViewId) => {
+    const targetPath = viewPathMap[nextView];
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
+    }
   };
 
   const updateDatabase = (updater: (prev: typeof db) => typeof db) => {
@@ -249,7 +280,7 @@ export default function App() {
             <button
               key={item.id}
               className={`sidebar-link ${view === item.id ? 'active' : ''}`}
-              onClick={() => setView(item.id)}
+              onClick={() => openView(item.id)}
               type="button"
             >
               <span className="sidebar-link-content">
@@ -283,7 +314,7 @@ export default function App() {
               <i className="fa-solid fa-bell" aria-hidden="true" />
               {unread > 0 ? <span className="notification-badge">{unread}</span> : null}
             </button>
-            <button className="icon-btn" onClick={() => setView('mapa')} type="button">
+            <button className="icon-btn" onClick={() => openView('mapa')} type="button">
               Mapa Polski
             </button>
           </div>
