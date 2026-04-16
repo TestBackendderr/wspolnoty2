@@ -33,9 +33,9 @@ interface NavItem {
 }
 
 const roleLabel: Record<UserRole, string> = {
-  admin: 'admin',
-  caregiver: 'opiekun',
-  opiekun: 'opiekun',
+  admin: 'Admin',
+  caregiver: 'Opiekun',
+  opiekun: 'Opiekun',
 };
 
 const pageTitles: Record<ViewId, string> = {
@@ -289,14 +289,37 @@ export default function App() {
     }));
   };
 
-  const handleToggleCaregiverBlocked = (userId: number) => {
+  const handleUpdateUser = (
+    userId: number,
+    payload: Pick<User, 'name' | 'email' | 'phone' | 'password' | 'role' | 'isBlocked'>,
+  ) => {
     updateDatabase((prev) => ({
       ...prev,
-      caregivers: prev.caregivers.map((caregiver) =>
-        caregiver.id === userId ? { ...caregiver, isBlocked: !caregiver.isBlocked } : caregiver,
-      ),
       users: prev.users.map((user) =>
-        user.id === userId ? { ...user, isBlocked: !user.isBlocked } : user,
+        user.id === userId
+          ? {
+              ...user,
+              name: payload.name.trim() || user.name,
+              email: payload.email.trim() || user.email,
+              phone: payload.phone?.trim() ?? user.phone ?? '',
+              password: payload.password.trim() || user.password,
+              role: payload.role,
+              isBlocked: Boolean(payload.isBlocked),
+            }
+          : user,
+      ),
+      caregivers: prev.caregivers.map((caregiver) =>
+        caregiver.id === userId
+          ? {
+              ...caregiver,
+              name: payload.name.trim() || caregiver.name,
+              email: payload.email.trim() || caregiver.email,
+              phone: payload.phone?.trim() ?? caregiver.phone ?? '',
+              password: payload.password.trim() || caregiver.password,
+              role: payload.role === 'admin' ? 'opiekun' : payload.role,
+              isBlocked: Boolean(payload.isBlocked),
+            }
+          : caregiver,
       ),
     }));
   };
@@ -426,11 +449,11 @@ export default function App() {
             visibleCooperatives={visibleCooperatives}
             onAddCaregiver={handleAddCaregiver}
             onUpdateCaregiver={handleUpdateCaregiver}
-            onToggleCaregiverBlocked={handleToggleCaregiverBlocked}
             onAddArea={handleAddArea}
             onAddCooperative={handleAddCooperative}
             onUpdateCooperative={handleUpdateCooperative}
             onAddUser={handleAddUser}
+            onUpdateUser={handleUpdateUser}
           />
         </main>
       </section>
@@ -445,10 +468,13 @@ interface CurrentPageProps {
   visibleCooperatives: ReturnType<typeof readDatabase>['cooperatives'];
   onAddCaregiver: (values: AddEntryValues) => void;
   onUpdateCaregiver: (userId: number, payload: Pick<User, 'name' | 'email' | 'phone'>) => void;
-  onToggleCaregiverBlocked: (userId: number) => void;
   onAddArea: (values: AddEntryValues) => void;
   onAddCooperative: (values: AddEntryValues) => void;
   onAddUser: (values: AddEntryValues) => void;
+  onUpdateUser: (
+    userId: number,
+    payload: Pick<User, 'name' | 'email' | 'phone' | 'password' | 'role' | 'isBlocked'>,
+  ) => void;
   onUpdateCooperative?: (
     coopId: number,
     payload: Pick<Cooperative, 'status' | 'plannedPower' | 'installedPower'>,
@@ -461,10 +487,10 @@ function CurrentPage({
   visibleCooperatives,
   onAddCaregiver,
   onUpdateCaregiver,
-  onToggleCaregiverBlocked,
   onAddArea,
   onAddCooperative,
   onAddUser,
+  onUpdateUser,
   onUpdateCooperative,
 }: CurrentPageProps) {
   switch (view) {
@@ -476,7 +502,6 @@ function CurrentPage({
           db={db}
           onAddCaregiver={onAddCaregiver}
           onUpdateCaregiver={onUpdateCaregiver}
-          onToggleCaregiverBlocked={onToggleCaregiverBlocked}
         />
       );
     case 'tereny':
@@ -494,7 +519,7 @@ function CurrentPage({
     case 'sales-plans':
       return <PlanySprzedazowePage cooperatives={visibleCooperatives} caregivers={db.caregivers} />;
     case 'users-management':
-      return <ZarzadzanieKontamiPage db={db} onAddUser={onAddUser} />;
+      return <ZarzadzanieKontamiPage db={db} onAddUser={onAddUser} onUpdateUser={onUpdateUser} />;
     case 'calculator':
       return <KalkulatorPvMagazynPage />;
     case 'my-cooperatives':

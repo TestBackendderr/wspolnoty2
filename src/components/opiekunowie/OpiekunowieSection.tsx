@@ -8,14 +8,12 @@ interface OpiekunowieSectionProps {
   caregivers: User[];
   onAddCaregiver: (values: AddEntryValues) => void;
   onUpdateCaregiver: (userId: number, payload: Pick<User, 'name' | 'email' | 'phone'>) => void;
-  onToggleCaregiverBlocked: (userId: number) => void;
 }
 
 export default function OpiekunowieSection({
   caregivers,
   onAddCaregiver,
   onUpdateCaregiver,
-  onToggleCaregiverBlocked,
 }: OpiekunowieSectionProps) {
   const [editingCaregiver, setEditingCaregiver] = useState<User | null>(null);
   const [editName, setEditName] = useState('');
@@ -69,7 +67,6 @@ export default function OpiekunowieSection({
               <th>Imie i nazwisko</th>
               <th>Telefon</th>
               <th>Email</th>
-              <th>Status</th>
               <th className="actions-column">Akcje</th>
             </tr>
           </thead>
@@ -80,32 +77,16 @@ export default function OpiekunowieSection({
                   <td>{caregiver.name}</td>
                   <td>{caregiver.phone || '—'}</td>
                   <td>{caregiver.email}</td>
-                  <td>
-                    <span
-                      className={`user-role-badge ${
-                        caregiver.isBlocked ? 'status-blocked-badge' : 'status-active-badge'
-                      }`}
-                    >
-                      {caregiver.isBlocked ? 'zablokowany' : 'aktywny'}
-                    </span>
-                  </td>
                   <td className="caregiver-actions">
                     <button className="table-action-btn" onClick={() => openEditModal(caregiver)} type="button">
                       Edytuj
-                    </button>
-                    <button
-                      className="table-action-btn danger"
-                      onClick={() => onToggleCaregiverBlocked(caregiver.id)}
-                      type="button"
-                    >
-                      {caregiver.isBlocked ? 'Odblokuj' : 'Zablokuj'}
                     </button>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={5} className="empty-row">
+                <td colSpan={4} className="empty-row">
                   Brak danych
                 </td>
               </tr>
