@@ -324,6 +324,46 @@ export default function App() {
     }));
   };
 
+  const handleSetVoivodeshipLead = (voivodeshipId: string, caregiverId: number | null) => {
+    updateDatabase((prev) => {
+      const existing = prev.voivodeshipLeads.find((lead) => lead.voivodeshipId === voivodeshipId);
+      if (existing) {
+        return {
+          ...prev,
+          voivodeshipLeads: prev.voivodeshipLeads.map((lead) =>
+            lead.voivodeshipId === voivodeshipId ? { ...lead, caregiverId } : lead,
+          ),
+        };
+      }
+      return {
+        ...prev,
+        voivodeshipLeads: [...prev.voivodeshipLeads, { voivodeshipId, caregiverId }],
+      };
+    });
+  };
+
+  const handleSetVoivodeshipAssignments = (
+    voivodeshipId: string,
+    cooperativeIds: number[],
+    areaIds: number[],
+  ) => {
+    updateDatabase((prev) => {
+      const existing = prev.voivodeshipAssignments.find((item) => item.voivodeshipId === voivodeshipId);
+      if (existing) {
+        return {
+          ...prev,
+          voivodeshipAssignments: prev.voivodeshipAssignments.map((item) =>
+            item.voivodeshipId === voivodeshipId ? { ...item, cooperativeIds, areaIds } : item,
+          ),
+        };
+      }
+      return {
+        ...prev,
+        voivodeshipAssignments: [...prev.voivodeshipAssignments, { voivodeshipId, cooperativeIds, areaIds }],
+      };
+    });
+  };
+
   if (!isAuthenticated || currentUser === null) {
     return (
       <div className="auth-layout">
@@ -454,6 +494,8 @@ export default function App() {
             onUpdateCooperative={handleUpdateCooperative}
             onAddUser={handleAddUser}
             onUpdateUser={handleUpdateUser}
+            onSetVoivodeshipLead={handleSetVoivodeshipLead}
+            onSetVoivodeshipAssignments={handleSetVoivodeshipAssignments}
           />
         </main>
       </section>
@@ -475,6 +517,12 @@ interface CurrentPageProps {
     userId: number,
     payload: Pick<User, 'name' | 'email' | 'phone' | 'password' | 'role' | 'isBlocked'>,
   ) => void;
+  onSetVoivodeshipLead: (voivodeshipId: string, caregiverId: number | null) => void;
+  onSetVoivodeshipAssignments: (
+    voivodeshipId: string,
+    cooperativeIds: number[],
+    areaIds: number[],
+  ) => void;
   onUpdateCooperative?: (
     coopId: number,
     payload: Pick<Cooperative, 'status' | 'plannedPower' | 'installedPower'>,
@@ -491,6 +539,8 @@ function CurrentPage({
   onAddCooperative,
   onAddUser,
   onUpdateUser,
+  onSetVoivodeshipLead,
+  onSetVoivodeshipAssignments,
   onUpdateCooperative,
 }: CurrentPageProps) {
   switch (view) {
@@ -515,7 +565,13 @@ function CurrentPage({
         />
       );
     case 'mapa':
-      return <MapaPolskiPage db={db} />;
+      return (
+        <MapaPolskiPage
+          db={db}
+          onSetVoivodeshipLead={onSetVoivodeshipLead}
+          onSetVoivodeshipAssignments={onSetVoivodeshipAssignments}
+        />
+      );
     case 'sales-plans':
       return <PlanySprzedazowePage cooperatives={visibleCooperatives} caregivers={db.caregivers} />;
     case 'users-management':

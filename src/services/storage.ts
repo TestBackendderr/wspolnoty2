@@ -30,6 +30,8 @@ const fallbackDb: AppDatabase = {
   areas: [],
   cooperatives: [],
   salesPlans: [],
+  voivodeshipLeads: [],
+  voivodeshipAssignments: [],
 };
 
 export function readDatabase(): AppDatabase {
@@ -72,6 +74,23 @@ export function readDatabase(): AppDatabase {
       areas: normalizedAreas,
       cooperatives: parsed.cooperatives ?? [],
       salesPlans: parsed.salesPlans ?? [],
+      voivodeshipLeads: parsed.voivodeshipLeads ?? [],
+      voivodeshipAssignments: (parsed.voivodeshipAssignments ?? []).map((assignment) => {
+        const raw = assignment as {
+          voivodeshipId: string;
+          cooperativeId?: number | null;
+          areaId?: number | null;
+          cooperativeIds?: number[];
+          areaIds?: number[];
+        };
+        return {
+          voivodeshipId: raw.voivodeshipId,
+          cooperativeIds:
+            raw.cooperativeIds ??
+            (typeof raw.cooperativeId === 'number' ? [raw.cooperativeId] : []),
+          areaIds: raw.areaIds ?? (typeof raw.areaId === 'number' ? [raw.areaId] : []),
+        };
+      }),
     };
   } catch {
     localStorage.setItem(DB_STORAGE_KEY, JSON.stringify(fallbackDb));

@@ -46,10 +46,23 @@ export interface Area {
   voivodeship: string;
 }
 
+export interface VoivodeshipLead {
+  voivodeshipId: string;
+  caregiverId: number | null;
+}
+
+export interface VoivodeshipAssignment {
+  voivodeshipId: string;
+  cooperativeIds: number[];
+  areaIds: number[];
+}
+
 export interface AppDatabase {
   users: User[];
   caregivers: User[];
   areas: Area[];
   cooperatives: Cooperative[];
   salesPlans: Array<Record<string, unknown>>;
+  voivodeshipLeads: VoivodeshipLead[];
+  voivodeshipAssignments: VoivodeshipAssignment[];
 }
