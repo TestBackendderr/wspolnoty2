@@ -58,8 +58,16 @@ export function readDatabase(): AppDatabase {
       type: (area as { type?: string }).type ?? '',
       postalCode: (area as { postalCode?: string }).postalCode ?? '',
     }));
+    const userIds = new Set(normalizedUsers.map((u) => u.id));
+    const mergedUsers = [...normalizedUsers];
+    normalizedCaregivers.forEach((c) => {
+      if (!userIds.has(c.id)) {
+        mergedUsers.push(c);
+      }
+    });
+
     return {
-      users: normalizedUsers,
+      users: mergedUsers,
       caregivers: normalizedCaregivers,
       areas: normalizedAreas,
       cooperatives: parsed.cooperatives ?? [],

@@ -35,6 +35,8 @@ export default function OpiekunowieSection({
 
   const saveEdit = () => {
     if (!editingCaregiver) return;
+    if (!editName.trim()) return;
+    if (!editEmail.trim()) return;
     onUpdateCaregiver(editingCaregiver.id, {
       name: editName.trim(),
       phone: editPhone.trim(),

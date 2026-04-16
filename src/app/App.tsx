@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { getCurrentUser, login, logout } from '@/services/auth';
 import { readDatabase, writeDatabase } from '@/services/storage';
-import type { User, UserRole } from '@/types/domain';
+import type { Cooperative, User, UserRole } from '@/types/domain';
 import type { AddEntryValues } from '@/components/common/AddEntryModal';
 import DashboardPage from '@/pages/dashboard';
 import OpiekunowiePage from '@/pages/opiekunowie';
@@ -128,7 +128,11 @@ export default function App() {
 
     const fullName = `${firstName} ${lastName}`.trim();
     updateDatabase((prev) => {
-      const nextId = Math.max(0, ...prev.caregivers.map((x) => x.id)) + 1;
+      const nextId =
+        Math.max(0, ...prev.caregivers.map((x) => x.id), ...prev.users.map((x) => x.id)) + 1;
+
+      const email = (values['caregiver-email'] ?? '').trim();
+      const phone = (values['caregiver-phone'] ?? '').trim();
       return {
         ...prev,
         caregivers: [
@@ -136,9 +140,22 @@ export default function App() {
           {
             id: nextId,
             name: fullName || 'Nowy opiekun',
-            email: (values['caregiver-email'] ?? '').trim(),
+            email,
             password: 'opiekun',
-            phone: (values['caregiver-phone'] ?? '').trim(),
+            phone,
+            isBlocked: false,
+            role: 'opiekun',
+            notifications: [],
+          },
+        ],
+        users: [
+          ...prev.users,
+          {
+            id: nextId,
+            name: fullName || 'Nowy opiekun',
+            email,
+            password: 'opiekun',
+            phone,
             isBlocked: false,
             role: 'opiekun',
             notifications: [],
@@ -192,6 +209,25 @@ export default function App() {
         ],
       };
     });
+  };
+
+  const handleUpdateCooperative = (
+    coopId: number,
+    payload: Pick<Cooperative, 'status' | 'plannedPower' | 'installedPower'>,
+  ) => {
+    updateDatabase((prev) => ({
+      ...prev,
+      cooperatives: prev.cooperatives.map((coop) =>
+        coop.id === coopId
+          ? {
+              ...coop,
+              status: payload.status,
+              plannedPower: payload.plannedPower,
+              installedPower: payload.installedPower,
+            }
+          : coop,
+      ),
+    }));
   };
 
   const handleAddUser = (values: AddEntryValues) => {
@@ -393,6 +429,7 @@ export default function App() {
             onToggleCaregiverBlocked={handleToggleCaregiverBlocked}
             onAddArea={handleAddArea}
             onAddCooperative={handleAddCooperative}
+            onUpdateCooperative={handleUpdateCooperative}
             onAddUser={handleAddUser}
           />
         </main>
@@ -412,6 +449,10 @@ interface CurrentPageProps {
   onAddArea: (values: AddEntryValues) => void;
   onAddCooperative: (values: AddEntryValues) => void;
   onAddUser: (values: AddEntryValues) => void;
+  onUpdateCooperative?: (
+    coopId: number,
+    payload: Pick<Cooperative, 'status' | 'plannedPower' | 'installedPower'>,
+  ) => void;
 }
 
 function CurrentPage({
@@ -424,6 +465,7 @@ function CurrentPage({
   onAddArea,
   onAddCooperative,
   onAddUser,
+  onUpdateCooperative,
 }: CurrentPageProps) {
   switch (view) {
     case 'dashboard':
@@ -440,7 +482,13 @@ function CurrentPage({
     case 'tereny':
       return <TerenyPage db={db} onAddArea={onAddArea} />;
     case 'spoldzielnie':
-      return <SpoldzielniePage cooperatives={visibleCooperatives} onAddCooperative={onAddCooperative} />;
+      return (
+        <SpoldzielniePage
+          cooperatives={visibleCooperatives}
+          onAddCooperative={onAddCooperative}
+          onUpdateCooperative={onUpdateCooperative}
+        />
+      );
     case 'mapa':
       return <MapaPolskiPage db={db} />;
     case 'sales-plans':

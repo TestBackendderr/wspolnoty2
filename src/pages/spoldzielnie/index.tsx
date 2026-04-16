@@ -5,8 +5,22 @@ import type { AddEntryValues } from '@/components/common/AddEntryModal';
 interface SpoldzielniePageProps {
   cooperatives: Cooperative[];
   onAddCooperative: (values: AddEntryValues) => void;
+  onUpdateCooperative?: (
+    coopId: number,
+    payload: Pick<Cooperative, 'status' | 'plannedPower' | 'installedPower'>,
+  ) => void;
 }
 
-export default function SpoldzielniePage({ cooperatives, onAddCooperative }: SpoldzielniePageProps) {
-  return <SpoldzielnieSection cooperatives={cooperatives} onAddCooperative={onAddCooperative} />;
+export default function SpoldzielniePage({
+  cooperatives,
+  onAddCooperative,
+  onUpdateCooperative,
+}: SpoldzielniePageProps) {
+  return (
+    <SpoldzielnieSection
+      cooperatives={cooperatives}
+      onAddCooperative={onAddCooperative}
+      onUpdateCooperative={onUpdateCooperative}
+    />
+  );
 }
