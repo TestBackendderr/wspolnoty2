@@ -17,6 +17,9 @@ export function login(payload: LoginPayload): User | null {
   if (!user) {
     return null;
   }
+  if (user.isBlocked) {
+    return null;
+  }
 
   writeAuthUserId(user.id);
   return user;

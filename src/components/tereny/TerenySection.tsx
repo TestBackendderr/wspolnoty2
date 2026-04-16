@@ -1,5 +1,6 @@
 import AddEntryModal from '@/components/common/AddEntryModal';
 import type { AddEntryValues } from '@/components/common/AddEntryModal';
+import { VOIVODESHIPS } from '@/constants/voivodeships';
 import type { Area } from '@/types/domain';
 
 interface TerenySectionProps {
@@ -19,7 +20,7 @@ export default function TerenySection({ areas, onAddArea }: TerenySectionProps) 
             { id: 'area-name', label: 'Nazwa terenu', placeholder: 'np. Teren A' },
             { id: 'area-type', label: 'Typ terenu', placeholder: 'np. Miasto' },
             { id: 'area-postal', label: 'Kod pocztowy', placeholder: '00-000' },
-            { id: 'area-voivodeship', label: 'Wojewodztwo', placeholder: 'Mazowieckie' },
+            { id: 'area-voivodeship', label: 'Wojewodztwo', options: VOIVODESHIPS },
           ]}
           onSubmit={onAddArea}
         />

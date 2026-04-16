@@ -10,6 +10,7 @@ interface AddEntryModalProps {
     label: string;
     type?: 'text' | 'number' | 'email' | 'date';
     placeholder?: string;
+    options?: readonly string[];
   }>;
   onSubmit?: (values: AddEntryValues) => void;
 }
@@ -48,13 +49,24 @@ export default function AddEntryModal({
               {fields.map((field) => (
                 <label key={field.id} htmlFor={field.id}>
                   {field.label}
-                  <input
-                    id={field.id}
-                    name={field.id}
-                    type={field.type ?? 'text'}
-                    placeholder={field.placeholder}
-                    required
-                  />
+                  {field.options ? (
+                    <select id={field.id} name={field.id} className="add-entry-select" required>
+                      <option value="">Wybierz</option>
+                      {field.options.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      id={field.id}
+                      name={field.id}
+                      type={field.type ?? 'text'}
+                      placeholder={field.placeholder}
+                      required
+                    />
+                  )}
                 </label>
               ))}
               <div className="add-entry-actions">

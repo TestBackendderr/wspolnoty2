@@ -11,6 +11,8 @@ const fallbackDb: AppDatabase = {
       password: 'admin',
       role: 'admin',
       name: 'Bartlomiej Wrzoskiewicz',
+      phone: '',
+      isBlocked: false,
       notifications: [],
     },
     {
@@ -19,6 +21,8 @@ const fallbackDb: AppDatabase = {
       password: 'opiekun',
       role: 'opiekun',
       name: 'Przykladowy Opiekun',
+      phone: '',
+      isBlocked: false,
       notifications: [],
     },
   ],
@@ -37,6 +41,16 @@ export function readDatabase(): AppDatabase {
 
   try {
     const parsed = JSON.parse(raw) as Partial<AppDatabase>;
+    const normalizedUsers = (parsed.users ?? fallbackDb.users).map((user) => ({
+      ...user,
+      phone: user.phone ?? '',
+      isBlocked: user.isBlocked ?? false,
+    }));
+    const normalizedCaregivers = (parsed.caregivers ?? []).map((caregiver) => ({
+      ...caregiver,
+      phone: caregiver.phone ?? '',
+      isBlocked: caregiver.isBlocked ?? false,
+    }));
     const normalizedAreas = (parsed.areas ?? []).map((area) => ({
       id: area.id,
       name: area.name,
@@ -45,8 +59,8 @@ export function readDatabase(): AppDatabase {
       postalCode: (area as { postalCode?: string }).postalCode ?? '',
     }));
     return {
-      users: parsed.users ?? fallbackDb.users,
-      caregivers: parsed.caregivers ?? [],
+      users: normalizedUsers,
+      caregivers: normalizedCaregivers,
       areas: normalizedAreas,
       cooperatives: parsed.cooperatives ?? [],
       salesPlans: parsed.salesPlans ?? [],

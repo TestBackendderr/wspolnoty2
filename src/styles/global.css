@@ -344,6 +344,68 @@ body {
   padding: 12px 14px;
 }
 
+.caregivers-table-wrap {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.caregivers-table th {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+  background: #fafafa;
+  padding: 12px 14px;
+}
+
+.caregivers-table td {
+  padding: 12px 14px;
+}
+
+.actions-column {
+  width: 220px;
+}
+
+.caregiver-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.table-action-btn {
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.table-action-btn.danger {
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.status-active-badge {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-blocked-badge {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.email-warning {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
 .user-role-badge {
   display: inline-flex;
   align-items: center;
@@ -917,6 +979,13 @@ td {
   border: 1px solid #d1d5db;
   border-radius: 10px;
   padding: 10px 12px;
+}
+
+.add-entry-select {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
 }
 
 .add-entry-actions {

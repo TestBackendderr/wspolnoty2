@@ -138,6 +138,8 @@ export default function App() {
             name: fullName || 'Nowy opiekun',
             email: (values['caregiver-email'] ?? '').trim(),
             password: 'opiekun',
+            phone: (values['caregiver-phone'] ?? '').trim(),
+            isBlocked: false,
             role: 'opiekun',
             notifications: [],
           },
@@ -212,12 +214,55 @@ export default function App() {
             name,
             email,
             password,
+            phone: '',
+            isBlocked: false,
             role,
             notifications: [],
           },
         ],
       };
     });
+  };
+
+  const handleUpdateCaregiver = (
+    userId: number,
+    payload: Pick<User, 'name' | 'email' | 'phone'>,
+  ) => {
+    updateDatabase((prev) => ({
+      ...prev,
+      caregivers: prev.caregivers.map((caregiver) =>
+        caregiver.id === userId
+          ? {
+              ...caregiver,
+              name: payload.name.trim() || caregiver.name,
+              email: payload.email.trim() || caregiver.email,
+              phone: payload.phone?.trim() ?? caregiver.phone ?? '',
+            }
+          : caregiver,
+      ),
+      users: prev.users.map((user) =>
+        user.id === userId
+          ? {
+              ...user,
+              name: payload.name.trim() || user.name,
+              email: payload.email.trim() || user.email,
+              phone: payload.phone?.trim() ?? user.phone ?? '',
+            }
+          : user,
+      ),
+    }));
+  };
+
+  const handleToggleCaregiverBlocked = (userId: number) => {
+    updateDatabase((prev) => ({
+      ...prev,
+      caregivers: prev.caregivers.map((caregiver) =>
+        caregiver.id === userId ? { ...caregiver, isBlocked: !caregiver.isBlocked } : caregiver,
+      ),
+      users: prev.users.map((user) =>
+        user.id === userId ? { ...user, isBlocked: !user.isBlocked } : user,
+      ),
+    }));
   };
 
   if (!isAuthenticated || currentUser === null) {
@@ -344,6 +389,8 @@ export default function App() {
             db={db}
             visibleCooperatives={visibleCooperatives}
             onAddCaregiver={handleAddCaregiver}
+            onUpdateCaregiver={handleUpdateCaregiver}
+            onToggleCaregiverBlocked={handleToggleCaregiverBlocked}
             onAddArea={handleAddArea}
             onAddCooperative={handleAddCooperative}
             onAddUser={handleAddUser}
@@ -360,6 +407,8 @@ interface CurrentPageProps {
   db: ReturnType<typeof readDatabase>;
   visibleCooperatives: ReturnType<typeof readDatabase>['cooperatives'];
   onAddCaregiver: (values: AddEntryValues) => void;
+  onUpdateCaregiver: (userId: number, payload: Pick<User, 'name' | 'email' | 'phone'>) => void;
+  onToggleCaregiverBlocked: (userId: number) => void;
   onAddArea: (values: AddEntryValues) => void;
   onAddCooperative: (values: AddEntryValues) => void;
   onAddUser: (values: AddEntryValues) => void;
@@ -370,6 +419,8 @@ function CurrentPage({
   db,
   visibleCooperatives,
   onAddCaregiver,
+  onUpdateCaregiver,
+  onToggleCaregiverBlocked,
   onAddArea,
   onAddCooperative,
   onAddUser,
@@ -378,7 +429,14 @@ function CurrentPage({
     case 'dashboard':
       return <DashboardPage db={db} cooperatives={visibleCooperatives} />;
     case 'opiekunowie':
-      return <OpiekunowiePage db={db} onAddCaregiver={onAddCaregiver} />;
+      return (
+        <OpiekunowiePage
+          db={db}
+          onAddCaregiver={onAddCaregiver}
+          onUpdateCaregiver={onUpdateCaregiver}
+          onToggleCaregiverBlocked={onToggleCaregiverBlocked}
+        />
+      );
     case 'tereny':
       return <TerenyPage db={db} onAddArea={onAddArea} />;
     case 'spoldzielnie':

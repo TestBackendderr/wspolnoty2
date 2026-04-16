@@ -15,6 +15,8 @@ export interface User {
   password: string;
   role: UserRole;
   name: string;
+  phone?: string;
+  isBlocked?: boolean;
   notifications: NotificationItem[];
 }
 
