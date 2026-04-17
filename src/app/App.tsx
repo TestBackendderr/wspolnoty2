@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { getCurrentUser, login, logout } from '@/services/auth';
@@ -89,20 +89,30 @@ function getAuthViewFromPathname(pathname: string): AuthView {
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [currentUser, setCurrentUser] = useState<User | null>(() => getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [db, setDb] = useState(() => readDatabase());
   const [error, setError] = useState<string>('');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [authResolved, setAuthResolved] = useState(false);
   const view = useMemo(() => getViewFromPathname(location.pathname), [location.pathname]);
   const authView = useMemo(() => getAuthViewFromPathname(location.pathname), [location.pathname]);
   const isAuthenticated = useMemo(() => currentUser !== null, [currentUser]);
   const isCaregiver = currentUser?.role === 'opiekun' || currentUser?.role === 'caregiver';
 
-  const handleLogin = (payload: { email: string; password: string }) => {
+  useEffect(() => {
+    const bootstrapAuth = async () => {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+      setAuthResolved(true);
+    };
+    void bootstrapAuth();
+  }, []);
+
+  const handleLogin = async (payload: { email: string; password: string }) => {
     const email = payload.email.trim();
     const password = payload.password;
-    const loggedInUser = login({ email, password });
+    const loggedInUser = await login({ email, password });
     if (!loggedInUser) {
       setError('Nieprawidlowy email lub haslo.');
       return;
@@ -113,8 +123,8 @@ export default function App() {
     navigate(viewPathMap.dashboard);
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     setCurrentUser(null);
     navigate('/login');
     setNotificationsOpen(false);
@@ -452,6 +462,17 @@ export default function App() {
 
     return { ok: true };
   };
+
+  if (!authResolved) {
+    return (
+      <div className="auth-layout">
+        <div className="auth-card">
+          <h1>Wspolnoty Energetyczne</h1>
+          <p>Sprawdzanie sesji...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated || currentUser === null) {
     const loginEmailFromPath = new URLSearchParams(location.search).get('email') ?? '';
