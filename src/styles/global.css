@@ -1166,6 +1166,19 @@ td {
   padding: 10px 12px;
 }
 
+.account-password-section {
+  border-top: 1px solid #e5e7eb;
+  margin-top: 4px;
+  padding-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.account-password-section strong {
+  font-size: 14px;
+  color: #374151;
+}
+
 .add-entry-select {
   border: 1px solid #d1d5db;
   border-radius: 10px;
