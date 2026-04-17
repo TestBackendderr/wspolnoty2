@@ -13,12 +13,14 @@ interface SpoldzielnieSectionProps {
     coopId: number,
     payload: Pick<Cooperative, 'status' | 'plannedPower' | 'installedPower'>,
   ) => void;
+  onDeleteCooperative?: (coopId: number) => void;
 }
 
 export default function SpoldzielnieSection({
   cooperatives,
   onAddCooperative,
   onUpdateCooperative,
+  onDeleteCooperative,
 }: SpoldzielnieSectionProps) {
   const [editing, setEditing] = useState<Cooperative | null>(null);
   const [editStatus, setEditStatus] = useState<Cooperative['status']>('planowana');
@@ -106,6 +108,18 @@ export default function SpoldzielnieSection({
               </label>
             </form>
             <div className="add-entry-actions">
+              {onDeleteCooperative ? (
+                <button
+                  className="table-action-btn danger"
+                  onClick={() => {
+                    onDeleteCooperative(editing.id);
+                    closeEdit();
+                  }}
+                  type="button"
+                >
+                  Usun
+                </button>
+              ) : null}
               <button className="primary-outline-btn" onClick={closeEdit} type="button">
                 Anuluj
               </button>

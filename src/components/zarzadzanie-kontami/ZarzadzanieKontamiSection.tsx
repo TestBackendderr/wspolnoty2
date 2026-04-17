@@ -11,12 +11,14 @@ interface ZarzadzanieKontamiSectionProps {
     userId: number,
     payload: Pick<User, 'name' | 'email' | 'phone' | 'password' | 'role' | 'isBlocked'>,
   ) => void;
+  onDeleteUser?: (userId: number) => void;
 }
 
 export default function ZarzadzanieKontamiSection({
   users,
   onAddUser,
   onUpdateUser,
+  onDeleteUser,
 }: ZarzadzanieKontamiSectionProps) {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editName, setEditName] = useState('');
@@ -84,8 +86,10 @@ export default function ZarzadzanieKontamiSection({
           buttonLabel="Dodaj nowe konto"
           modalTitle="Dodaj nowe konto"
           fields={[
-            { id: 'user-name', label: 'Nazwa uzytkownika', placeholder: 'np. Jan Kowalski' },
+            { id: 'user-name', label: 'Imie', placeholder: 'Jan' },
+            { id: 'user-surname', label: 'Nazwisko', placeholder: 'Kowalski' },
             { id: 'user-email', label: 'Email', type: 'email', placeholder: 'jan@example.com' },
+            { id: 'user-phone', label: 'Telefon', placeholder: '+48 600 123 456' },
             { id: 'user-role', label: 'Rola', options: ['Admin', 'Opiekun'] },
             { id: 'user-password', label: 'Haslo tymczasowe', placeholder: 'haslo123' },
           ]}
@@ -212,6 +216,19 @@ export default function ZarzadzanieKontamiSection({
             </div>
             {editError ? <p className="form-error">{editError}</p> : null}
             <div className="add-entry-actions">
+              {onDeleteUser ? (
+                <button
+                  className="table-action-btn danger"
+                  onClick={() => {
+                    if (!editingUser) return;
+                    onDeleteUser(editingUser.id);
+                    closeEdit();
+                  }}
+                  type="button"
+                >
+                  Usun
+                </button>
+              ) : null}
               <button className="primary-outline-btn" onClick={closeEdit} type="button">
                 Anuluj
               </button>

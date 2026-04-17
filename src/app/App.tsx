@@ -3,6 +3,22 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import { getCurrentUser, login, logout } from '@/services/auth';
 import { readDatabase, writeDatabase } from '@/services/storage';
+import {
+  createCooperative,
+  deleteCooperative as deleteCooperativeApi,
+  listCooperatives,
+  mapStatusToApi,
+  updateCooperative as updateCooperativeApi,
+} from '@/services/cooperatives';
+import {
+  blockUser as blockUserApi,
+  createUser as createUserApi,
+  deleteUser as deleteUserApi,
+  listUsersFromBackend,
+  mapRoleToApi,
+  unblockUser as unblockUserApi,
+  updateUser as updateUserApi,
+} from '@/services/users';
 import type { Cooperative, User, UserRole } from '@/types/domain';
 import type { AddEntryValues } from '@/components/common/AddEntryModal';
 import DashboardPage from '@/pages/dashboard';
@@ -86,6 +102,13 @@ function getAuthViewFromPathname(pathname: string): AuthView {
   return 'login';
 }
 
+function splitFullName(fullName: string): { name: string; surname: string } {
+  const normalized = fullName.trim().replace(/\s+/g, ' ');
+  if (!normalized) return { name: '', surname: '' };
+  const [name, ...rest] = normalized.split(' ');
+  return { name, surname: rest.join(' ') };
+}
+
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -108,6 +131,23 @@ export default function App() {
     };
     void bootstrapAuth();
   }, []);
+
+  useEffect(() => {
+    if (!authResolved || !currentUser) return;
+    const loadBackendData = async () => {
+      try {
+        const [cooperatives, users] = await Promise.all([listCooperatives(), listUsersFromBackend()]);
+        setDb((prev) => ({
+          ...prev,
+          cooperatives,
+          users: users.length > 0 ? users : prev.users,
+        }));
+      } catch {
+        setError('Nie udalo sie pobrac danych z backendu.');
+      }
+    };
+    void loadBackendData();
+  }, [authResolved, currentUser]);
 
   const handleLogin = async (payload: { email: string; password: string }) => {
     const email = payload.email.trim();
@@ -212,78 +252,96 @@ export default function App() {
     });
   };
 
-  const handleAddCooperative = (values: AddEntryValues) => {
+  const handleAddCooperative = async (values: AddEntryValues) => {
     const name = (values['coop-name'] ?? '').trim();
     if (!name) return;
-    updateDatabase((prev) => {
-      const nextId = Math.max(0, ...prev.cooperatives.map((x) => x.id)) + 1;
-      return {
-        ...prev,
-        cooperatives: [
-          ...prev.cooperatives,
-          {
-            id: nextId,
-            name,
-            address: (values['coop-address'] ?? '').trim(),
-            voivodeship: (values['coop-voivodeship'] ?? '').trim() || 'nieokreslone',
-            status: 'planowana',
-            caregiverId: null,
-            plannedPower: Number(values['coop-planned-power'] ?? 0) || 0,
-            installedPower: 0,
-            members: [],
-          },
-        ],
-      };
-    });
+    try {
+      const created = await createCooperative({
+        name,
+        address: (values['coop-address'] ?? '').trim(),
+        region: (values['coop-voivodeship'] ?? '').trim() || 'nieokreslone',
+        ratedPower: Number(values['coop-planned-power'] ?? 0) || 0,
+      });
+      setDb((prev) => ({ ...prev, cooperatives: [...prev.cooperatives, created] }));
+      setError('');
+    } catch {
+      setError('Nie udalo sie dodac spoldzielni. Sprawdz uprawnienia i sesje.');
+    }
   };
 
   const handleUpdateCooperative = (
     coopId: number,
     payload: Pick<Cooperative, 'status' | 'plannedPower' | 'installedPower'>,
   ) => {
-    updateDatabase((prev) => ({
-      ...prev,
-      cooperatives: prev.cooperatives.map((coop) =>
-        coop.id === coopId
-          ? {
-              ...coop,
-              status: payload.status,
-              plannedPower: payload.plannedPower,
-              installedPower: payload.installedPower,
-            }
-          : coop,
-      ),
-    }));
+    const targetCoop = db.cooperatives.find((coop) => coop.id === coopId);
+    if (!targetCoop) return;
+
+    void (async () => {
+      try {
+        const updated = await updateCooperativeApi(coopId, {
+          name: targetCoop.name,
+          address: targetCoop.address,
+          region: targetCoop.voivodeship,
+          ratedPower: payload.plannedPower,
+          installedPower: payload.installedPower,
+          status: mapStatusToApi(payload.status),
+        });
+        setDb((prev) => ({
+          ...prev,
+          cooperatives: prev.cooperatives.map((coop) => (coop.id === coopId ? updated : coop)),
+        }));
+        setError('');
+      } catch {
+        setError('Nie udalo sie zaktualizowac spoldzielni. Sprawdz uprawnienia (ADMIN).');
+      }
+    })();
+  };
+
+  const handleDeleteCooperative = (coopId: number) => {
+    void (async () => {
+      try {
+        await deleteCooperativeApi(coopId);
+        setDb((prev) => ({
+          ...prev,
+          cooperatives: prev.cooperatives.filter((coop) => coop.id !== coopId),
+        }));
+        setError('');
+      } catch {
+        setError('Nie udalo sie usunac spoldzielni. Sprawdz uprawnienia (ADMIN).');
+      }
+    })();
   };
 
   const handleAddUser = (values: AddEntryValues) => {
     const name = (values['user-name'] ?? '').trim();
+    const surname = (values['user-surname'] ?? '').trim();
     const email = (values['user-email'] ?? '').trim();
-    if (!name || !email) return;
+    const phoneNumber = (values['user-phone'] ?? '').trim();
+    if (!name || !surname || !email || !phoneNumber) return;
 
     const rawRole = (values['user-role'] ?? '').trim().toLowerCase();
     const role: UserRole = rawRole === 'admin' ? 'admin' : 'opiekun';
     const password = (values['user-password'] ?? '').trim() || 'haslo123';
 
-    updateDatabase((prev) => {
-      const nextId = Math.max(0, ...prev.users.map((x) => x.id)) + 1;
-      return {
-        ...prev,
-        users: [
-          ...prev.users,
-          {
-            id: nextId,
-            name,
-            email,
-            password,
-            phone: '',
-            isBlocked: false,
-            role,
-            notifications: [],
-          },
-        ],
-      };
-    });
+    void (async () => {
+      try {
+        const created = await createUserApi({
+          name,
+          surname,
+          email,
+          phoneNumber,
+          password,
+          role: mapRoleToApi(role),
+        });
+        setDb((prev) => ({
+          ...prev,
+          users: [...prev.users.filter((user) => user.id !== created.id), created],
+        }));
+        setError('');
+      } catch {
+        setError('Nie udalo sie utworzyc konta.');
+      }
+    })();
   };
 
   const handleUpdateCaregiver = (
@@ -319,35 +377,52 @@ export default function App() {
     userId: number,
     payload: Pick<User, 'name' | 'email' | 'phone' | 'password' | 'role' | 'isBlocked'>,
   ) => {
-    updateDatabase((prev) => ({
-      ...prev,
-      users: prev.users.map((user) =>
-        user.id === userId
-          ? {
-              ...user,
-              name: payload.name.trim() || user.name,
-              email: payload.email.trim() || user.email,
-              phone: payload.phone?.trim() ?? user.phone ?? '',
-              password: payload.password.trim() || user.password,
-              role: payload.role,
-              isBlocked: Boolean(payload.isBlocked),
-            }
-          : user,
-      ),
-      caregivers: prev.caregivers.map((caregiver) =>
-        caregiver.id === userId
-          ? {
-              ...caregiver,
-              name: payload.name.trim() || caregiver.name,
-              email: payload.email.trim() || caregiver.email,
-              phone: payload.phone?.trim() ?? caregiver.phone ?? '',
-              password: payload.password.trim() || caregiver.password,
-              role: payload.role === 'admin' ? 'opiekun' : payload.role,
-              isBlocked: Boolean(payload.isBlocked),
-            }
-          : caregiver,
-      ),
-    }));
+    const current = db.users.find((user) => user.id === userId);
+    if (!current) return;
+
+    const split = splitFullName(payload.name.trim() || current.name);
+    void (async () => {
+      try {
+        const updated = await updateUserApi(userId, {
+          name: split.name || payload.name.trim() || current.name,
+          surname: split.surname || 'Brak',
+          email: payload.email.trim() || current.email,
+          phoneNumber: payload.phone?.trim() ?? current.phone ?? '',
+          role: mapRoleToApi(payload.role),
+          ...(payload.password.trim() ? { password: payload.password.trim() } : {}),
+        });
+
+        if (Boolean(payload.isBlocked) !== Boolean(current.isBlocked)) {
+          if (payload.isBlocked) await blockUserApi(userId);
+          else await unblockUserApi(userId);
+        }
+
+        setDb((prev) => ({
+          ...prev,
+          users: prev.users.map((user) =>
+            user.id === userId ? { ...updated, isBlocked: Boolean(payload.isBlocked) } : user,
+          ),
+        }));
+        setError('');
+      } catch {
+        setError('Nie udalo sie zaktualizowac konta.');
+      }
+    })();
+  };
+
+  const handleDeleteUser = (userId: number) => {
+    void (async () => {
+      try {
+        await deleteUserApi(userId);
+        setDb((prev) => ({
+          ...prev,
+          users: prev.users.filter((user) => user.id !== userId),
+        }));
+        setError('');
+      } catch {
+        setError('Nie udalo sie usunac konta.');
+      }
+    })();
   };
 
   const handleUpdateMyProfile = (payload: Pick<User, 'name' | 'email' | 'phone' | 'password'>) => {
@@ -526,7 +601,10 @@ export default function App() {
       ];
 
   const visibleCooperatives = isCaregiver
-    ? db.cooperatives.filter((coop) => coop.caregiverId === currentUser.id)
+    ? (() => {
+        const assigned = db.cooperatives.filter((coop) => coop.caregiverId === currentUser.id);
+        return assigned.length > 0 ? assigned : db.cooperatives;
+      })()
     : db.cooperatives;
 
   const unread = (currentUser.notifications ?? []).filter((n) => !n.read).length;
@@ -602,6 +680,8 @@ export default function App() {
           </div>
         </header>
 
+        {error ? <div className="email-warning">{error}</div> : null}
+
         {notificationsOpen ? (
           <div className="notifications-popover-backdrop" onClick={() => setNotificationsOpen(false)}>
             <div className="notifications-popover" onClick={(event) => event.stopPropagation()}>
@@ -630,8 +710,10 @@ export default function App() {
             onAddArea={handleAddArea}
             onAddCooperative={handleAddCooperative}
             onUpdateCooperative={handleUpdateCooperative}
+            onDeleteCooperative={handleDeleteCooperative}
             onAddUser={handleAddUser}
             onUpdateUser={handleUpdateUser}
+            onDeleteUser={handleDeleteUser}
             currentUser={currentUser}
             onUpdateMyProfile={handleUpdateMyProfile}
             onSetVoivodeshipLead={handleSetVoivodeshipLead}
@@ -652,11 +734,13 @@ interface CurrentPageProps {
   onUpdateCaregiver: (userId: number, payload: Pick<User, 'name' | 'email' | 'phone'>) => void;
   onAddArea: (values: AddEntryValues) => void;
   onAddCooperative: (values: AddEntryValues) => void;
+  onDeleteCooperative?: (coopId: number) => void;
   onAddUser: (values: AddEntryValues) => void;
   onUpdateUser: (
     userId: number,
     payload: Pick<User, 'name' | 'email' | 'phone' | 'password' | 'role' | 'isBlocked'>,
   ) => void;
+  onDeleteUser?: (userId: number) => void;
   currentUser: User;
   onUpdateMyProfile: (payload: Pick<User, 'name' | 'email' | 'phone' | 'password'>) => void;
   onSetVoivodeshipLead: (voivodeshipId: string, caregiverId: number | null) => void;
@@ -679,8 +763,10 @@ function CurrentPage({
   onUpdateCaregiver,
   onAddArea,
   onAddCooperative,
+  onDeleteCooperative,
   onAddUser,
   onUpdateUser,
+  onDeleteUser,
   currentUser,
   onUpdateMyProfile,
   onSetVoivodeshipLead,
@@ -706,6 +792,7 @@ function CurrentPage({
           cooperatives={visibleCooperatives}
           onAddCooperative={onAddCooperative}
           onUpdateCooperative={onUpdateCooperative}
+          onDeleteCooperative={onDeleteCooperative}
         />
       );
     case 'mapa':
@@ -719,11 +806,24 @@ function CurrentPage({
     case 'sales-plans':
       return <PlanySprzedazowePage cooperatives={visibleCooperatives} caregivers={db.caregivers} />;
     case 'users-management':
-      return <ZarzadzanieKontamiPage db={db} onAddUser={onAddUser} onUpdateUser={onUpdateUser} />;
+      return (
+        <ZarzadzanieKontamiPage
+          db={db}
+          onAddUser={onAddUser}
+          onUpdateUser={onUpdateUser}
+          onDeleteUser={onDeleteUser}
+        />
+      );
     case 'calculator':
       return <KalkulatorPvMagazynPage />;
     case 'my-cooperatives':
-      return <SpoldzielniePage cooperatives={visibleCooperatives} onAddCooperative={onAddCooperative} />;
+      return (
+        <SpoldzielniePage
+          cooperatives={visibleCooperatives}
+          onAddCooperative={onAddCooperative}
+          onDeleteCooperative={onDeleteCooperative}
+        />
+      );
     case 'my-plan':
       return <PlanySprzedazowePage cooperatives={visibleCooperatives} caregivers={db.caregivers} />;
     case 'profile':
