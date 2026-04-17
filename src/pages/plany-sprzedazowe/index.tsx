@@ -1,11 +1,12 @@
 import PlanySprzedazoweSection from '@/components/plany-sprzedazowe/PlanySprzedazoweSection';
-import type { Cooperative, User } from '@/types/domain';
+import { useAppData } from '@/app/providers/appDataContext';
 
-interface PlanySprzedazowePageProps {
-  cooperatives: Cooperative[];
-  caregivers: User[];
-}
-
-export default function PlanySprzedazowePage({ cooperatives, caregivers }: PlanySprzedazowePageProps) {
-  return <PlanySprzedazoweSection cooperatives={cooperatives} caregivers={caregivers} />;
+export default function PlanySprzedazowePage() {
+  const { db, visibleCooperatives } = useAppData();
+  return (
+    <PlanySprzedazoweSection
+      cooperatives={visibleCooperatives}
+      caregivers={db.caregivers}
+    />
+  );
 }

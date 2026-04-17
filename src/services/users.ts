@@ -1,7 +1,7 @@
 import { apiRequest } from '@/services/api';
 import type { User } from '@/types/domain';
 
-type ApiUserRole = 'ADMIN' | 'OPIEKUN';
+export type ApiUserRole = 'ADMIN' | 'OPIEKUN';
 
 interface ApiUser {
   id: number;
@@ -85,21 +85,58 @@ export async function unblockUser(id: number): Promise<void> {
   await apiRequest(`/user/${id}/unblock`, { method: 'PATCH', skipJson: true });
 }
 
-export async function listUsersFromBackend(maxProbe = 500, maxMisses = 40): Promise<User[]> {
-  const users: User[] = [];
-  let misses = 0;
-  let id = 1;
+export interface ListUsersParams {
+  page?: number;
+  limit?: number;
+  role?: ApiUserRole;
+  sortOrder?: 'asc' | 'desc';
+}
 
-  while (id <= maxProbe && misses < maxMisses) {
-    try {
-      const user = await getUserById(id);
-      users.push(user);
-      misses = 0;
-    } catch {
-      misses += 1;
-    }
-    id += 1;
+export interface PaginatedUsers {
+  data: User[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+interface PaginatedApiResponse {
+  data: ApiUser[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export async function listUsers(params: ListUsersParams = {}): Promise<PaginatedUsers> {
+  const query = new URLSearchParams();
+  if (params.page !== undefined) query.set('page', String(params.page));
+  if (params.limit !== undefined) query.set('limit', String(params.limit));
+  if (params.role) query.set('role', params.role);
+  if (params.sortOrder) query.set('sortOrder', params.sortOrder);
+
+  const qs = query.toString();
+  const response = await apiRequest<PaginatedApiResponse>(`/user${qs ? `?${qs}` : ''}`);
+  return {
+    data: response.data.map(mapUserFromApi),
+    total: response.total,
+    page: response.page,
+    limit: response.limit,
+    totalPages: response.totalPages,
+  };
+}
+
+/** Loads every user via repeated paginated GET /user calls (no GET /user/:id probing). */
+export async function listAllUsers(limitPerPage = 100): Promise<User[]> {
+  const all: User[] = [];
+  let page = 1;
+
+  while (true) {
+    const result = await listUsers({ page, limit: limitPerPage, sortOrder: 'desc' });
+    all.push(...result.data);
+    if (page >= result.totalPages) break;
+    page += 1;
   }
 
-  return users;
+  return all;
 }

@@ -1,11 +1,7 @@
 import DashboardSection from '@/components/dashboard/DashboardSection';
-import type { AppDatabase, Cooperative } from '@/types/domain';
+import { useAppData } from '@/app/providers/appDataContext';
 
-interface DashboardPageProps {
-  db: AppDatabase;
-  cooperatives: Cooperative[];
-}
-
-export default function DashboardPage({ db, cooperatives }: DashboardPageProps) {
-  return <DashboardSection db={db} cooperatives={cooperatives} />;
+export default function DashboardPage() {
+  const { db, visibleCooperatives } = useAppData();
+  return <DashboardSection db={db} cooperatives={visibleCooperatives} />;
 }

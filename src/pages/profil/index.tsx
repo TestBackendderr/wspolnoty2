@@ -1,11 +1,11 @@
 import ProfilSection from '@/components/profil/ProfilSection';
-import type { User } from '@/types/domain';
+import { useAppData } from '@/app/providers/appDataContext';
+import { useAuth } from '@/app/providers/authContext';
 
-interface ProfilPageProps {
-  user: User;
-  onSave: (payload: Pick<User, 'name' | 'email' | 'phone' | 'password'>) => void;
-}
+export default function ProfilPage() {
+  const { currentUser } = useAuth();
+  const { handleUpdateMyProfile } = useAppData();
 
-export default function ProfilPage({ user, onSave }: ProfilPageProps) {
-  return <ProfilSection user={user} onSave={onSave} />;
+  if (!currentUser) return null;
+  return <ProfilSection user={currentUser} onSave={handleUpdateMyProfile} />;
 }

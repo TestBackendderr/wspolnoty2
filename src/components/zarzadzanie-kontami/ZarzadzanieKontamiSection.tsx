@@ -1,25 +1,64 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import AddEntryModal from '@/components/common/AddEntryModal';
 import type { AddEntryValues } from '@/components/common/AddEntryModal';
-import type { User } from '@/types/domain';
+import {
+  blockUser,
+  createUser,
+  deleteUser,
+  listUsers,
+  mapRoleToApi,
+  unblockUser,
+  updateUser,
+  type ApiUserRole,
+} from '@/services/users';
+import type { User, UserRole } from '@/types/domain';
 
-interface ZarzadzanieKontamiSectionProps {
-  users: User[];
-  onAddUser: (values: AddEntryValues) => void;
-  onUpdateUser: (
-    userId: number,
-    payload: Pick<User, 'name' | 'email' | 'phone' | 'password' | 'role' | 'isBlocked'>,
-  ) => void;
-  onDeleteUser?: (userId: number) => void;
+const PAGE_SIZE = 15;
+
+function splitFullName(fullName: string): { name: string; surname: string } {
+  const normalized = fullName.trim().replace(/\s+/g, ' ');
+  if (!normalized) return { name: '', surname: '' };
+  const [name, ...rest] = normalized.split(' ');
+  return { name, surname: rest.join(' ') || 'Brak' };
 }
 
-export default function ZarzadzanieKontamiSection({
-  users,
-  onAddUser,
-  onUpdateUser,
-  onDeleteUser,
-}: ZarzadzanieKontamiSectionProps) {
+const ROLE_FILTER_OPTIONS: { label: string; value: ApiUserRole | '' }[] = [
+  { label: 'Wszystkie role', value: '' },
+  { label: 'Admin', value: 'ADMIN' },
+  { label: 'Opiekun', value: 'OPIEKUN' },
+];
+
+export default function ZarzadzanieKontamiSection() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [addAccountFromButton, setAddAccountFromButton] = useState(false);
+  const addAccountFromUrl = searchParams.get('addAccount') === '1';
+  const addAccountModalOpen = addAccountFromUrl || addAccountFromButton;
+
+  const handleAddModalOpenChange = (open: boolean) => {
+    if (open) {
+      setAddAccountFromButton(true);
+      return;
+    }
+    setAddAccountFromButton(false);
+    if (searchParams.get('addAccount') === '1') {
+      const next = new URLSearchParams(searchParams);
+      next.delete('addAccount');
+      setSearchParams(next, { replace: true });
+    }
+  };
+
+  const [users, setUsers] = useState<User[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [page, setPage] = useState(1);
+  const [filterRole, setFilterRole] = useState<ApiUserRole | ''>('');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState('');
+  const [actionError, setActionError] = useState('');
+
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
@@ -29,6 +68,61 @@ export default function ZarzadzanieKontamiSection({
   const [editRole, setEditRole] = useState<User['role']>('opiekun');
   const [editBlocked, setEditBlocked] = useState(false);
   const [editError, setEditError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    setFetchError('');
+    try {
+      const result = await listUsers({
+        page,
+        limit: PAGE_SIZE,
+        ...(filterRole ? { role: filterRole } : {}),
+        sortOrder,
+      });
+      setUsers(result.data);
+      setTotal(result.total);
+      setTotalPages(result.totalPages);
+    } catch {
+      setFetchError('Nie udało się pobrać listy kont.');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, filterRole, sortOrder]);
+
+  useEffect(() => {
+    void fetchUsers();
+  }, [fetchUsers]);
+
+  const handleAddUser = (values: AddEntryValues) => {
+    const name = (values['user-name'] ?? '').trim();
+    const surname = (values['user-surname'] ?? '').trim();
+    const email = (values['user-email'] ?? '').trim();
+    const phoneNumber = (values['user-phone'] ?? '').trim();
+    if (!name || !surname || !email || !phoneNumber) return;
+
+    const rawRole = (values['user-role'] ?? '').trim().toLowerCase();
+    const role: UserRole = rawRole === 'admin' ? 'admin' : 'opiekun';
+    const password = (values['user-password'] ?? '').trim() || 'haslo123';
+
+    void (async () => {
+      setActionError('');
+      try {
+        await createUser({
+          name,
+          surname,
+          email,
+          phoneNumber,
+          password,
+          role: mapRoleToApi(role),
+        });
+        setPage(1);
+        await fetchUsers();
+      } catch {
+        setActionError('Nie udało się utworzyć konta.');
+      }
+    })();
+  };
 
   const openEdit = (user: User) => {
     setEditingUser(user);
@@ -66,17 +160,104 @@ export default function ZarzadzanieKontamiSection({
       }
     }
 
-    setEditError('');
-    onUpdateUser(editingUser.id, {
-      name: editName.trim(),
-      email: editEmail.trim(),
-      phone: editPhone.trim(),
-      password: shouldChangePassword ? editNewPassword.trim() : editingUser.password,
-      role: editRole,
-      isBlocked: editBlocked,
-    });
-    closeEdit();
+    const current = editingUser;
+    const split = splitFullName(editName.trim() || current.name);
+
+    setSaving(true);
+    void (async () => {
+      setEditError('');
+      try {
+        await updateUser(current.id, {
+          name: split.name || editName.trim() || current.name,
+          surname: split.surname || 'Brak',
+          email: editEmail.trim() || current.email,
+          phoneNumber: editPhone.trim(),
+          role: mapRoleToApi(editRole),
+          ...(shouldChangePassword ? { password: editNewPassword.trim() } : {}),
+        });
+
+        if (Boolean(editBlocked) !== Boolean(current.isBlocked)) {
+          if (editBlocked) await blockUser(current.id);
+          else await unblockUser(current.id);
+        }
+
+        closeEdit();
+        await fetchUsers();
+      } catch {
+        setEditError('Nie udało się zapisać zmian.');
+      } finally {
+        setSaving(false);
+      }
+    })();
   };
+
+  const handleDeleteUser = (userId: number) => {
+    void (async () => {
+      try {
+        await deleteUser(userId);
+        closeEdit();
+        await fetchUsers();
+      } catch {
+        setEditError('Nie udało się usunąć konta.');
+      }
+    })();
+  };
+
+  const filterBar = (
+    <div className="users-mgmt-toolbar">
+      <select
+        className="add-entry-select"
+        value={filterRole}
+        onChange={(e) => {
+          setPage(1);
+          setFilterRole(e.target.value as ApiUserRole | '');
+        }}
+      >
+        {ROLE_FILTER_OPTIONS.map((o) => (
+          <option key={o.label} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+
+      <select
+        className="add-entry-select"
+        value={sortOrder}
+        onChange={(e) => {
+          setPage(1);
+          setSortOrder(e.target.value as 'asc' | 'desc');
+        }}
+      >
+        <option value="desc">Data rejestracji: najnowsi</option>
+        <option value="asc">Data rejestracji: najstarsi</option>
+      </select>
+    </div>
+  );
+
+  const pagination =
+    totalPages > 1 ? (
+      <div className="users-mgmt-pagination">
+        <span className="users-mgmt-count">Łącznie: {total} kont</span>
+        <div className="users-mgmt-pagination-btns">
+          <button className="primary-outline-btn" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} type="button">
+            ‹ Poprzednia
+          </button>
+          <span className="users-mgmt-page-indicator">
+            {page} / {totalPages}
+          </span>
+          <button
+            className="primary-outline-btn"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => p + 1)}
+            type="button"
+          >
+            Następna ›
+          </button>
+        </div>
+      </div>
+    ) : total > 0 ? (
+      <p className="users-mgmt-count-only">Łącznie: {total} kont</p>
+    ) : null;
 
   return (
     <section className="panel">
@@ -93,56 +274,71 @@ export default function ZarzadzanieKontamiSection({
             { id: 'user-role', label: 'Rola', options: ['Admin', 'Opiekun'] },
             { id: 'user-password', label: 'Haslo tymczasowe', placeholder: 'haslo123' },
           ]}
-          onSubmit={onAddUser}
+          open={addAccountModalOpen}
+          onOpenChange={handleAddModalOpenChange}
+          onSubmit={handleAddUser}
         />
       </div>
 
-      <div className="table-wrapper users-table-wrap">
-        <table className="users-table">
-          <thead>
-            <tr>
-              <th>Imie</th>
-              <th>Email</th>
-              <th>Numer</th>
-              <th>Status</th>
-              <th>Rola</th>
-              <th>Akcje</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.length ? (
-              users.map((user) => (
-                <tr key={user.id}>
-                  <td>{user.name}</td>
-                  <td>{user.email}</td>
-                  <td>{user.phone || '—'}</td>
-                  <td>
-                    <span className={`user-role-badge ${user.isBlocked ? 'status-blocked-badge' : 'status-active-badge'}`}>
-                      {user.isBlocked ? 'Zablokowany' : 'Aktywny'}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`user-role-badge role-${normalizeRole(user.role)}`}>
-                      {formatRole(user.role)}
-                    </span>
-                  </td>
-                  <td>
-                    <button className="table-action-btn" onClick={() => openEdit(user)} type="button">
-                      Edytuj
-                    </button>
-                  </td>
+      {actionError ? <p className="email-warning users-mgmt-banner">{actionError}</p> : null}
+
+      {filterBar}
+
+      {loading ? (
+        <p className="users-mgmt-loading">Ładowanie...</p>
+      ) : fetchError ? (
+        <p className="email-warning">{fetchError}</p>
+      ) : (
+        <>
+          <div className="table-wrapper users-table-wrap">
+            <table className="users-table">
+              <thead>
+                <tr>
+                  <th>Imie</th>
+                  <th>Email</th>
+                  <th>Numer</th>
+                  <th>Status</th>
+                  <th>Rola</th>
+                  <th>Akcje</th>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={6} className="empty-row">
-                  Brak kont
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {users.length ? (
+                  users.map((user) => (
+                    <tr key={user.id}>
+                      <td>{user.name}</td>
+                      <td>{user.email}</td>
+                      <td>{user.phone || '—'}</td>
+                      <td>
+                        <span
+                          className={`user-role-badge ${user.isBlocked ? 'status-blocked-badge' : 'status-active-badge'}`}
+                        >
+                          {user.isBlocked ? 'Zablokowany' : 'Aktywny'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`user-role-badge role-${normalizeRole(user.role)}`}>{formatRole(user.role)}</span>
+                      </td>
+                      <td>
+                        <button className="table-action-btn" onClick={() => openEdit(user)} type="button">
+                          Edytuj
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="empty-row">
+                      Brak kont
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {pagination}
+        </>
+      )}
 
       {editingUser ? (
         <div className="modal-backdrop" onClick={closeEdit}>
@@ -216,24 +412,18 @@ export default function ZarzadzanieKontamiSection({
             </div>
             {editError ? <p className="form-error">{editError}</p> : null}
             <div className="add-entry-actions">
-              {onDeleteUser ? (
-                <button
-                  className="table-action-btn danger"
-                  onClick={() => {
-                    if (!editingUser) return;
-                    onDeleteUser(editingUser.id);
-                    closeEdit();
-                  }}
-                  type="button"
-                >
-                  Usun
-                </button>
-              ) : null}
+              <button
+                className="table-action-btn danger"
+                onClick={() => handleDeleteUser(editingUser.id)}
+                type="button"
+              >
+                Usun
+              </button>
               <button className="primary-outline-btn" onClick={closeEdit} type="button">
                 Anuluj
               </button>
-              <button className="primary-btn" onClick={saveEdit} type="button">
-                Zapisz
+              <button className="primary-btn" onClick={saveEdit} type="button" disabled={saving}>
+                {saving ? 'Zapisuję...' : 'Zapisz'}
               </button>
             </div>
           </div>

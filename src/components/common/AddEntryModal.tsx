@@ -13,6 +13,9 @@ interface AddEntryModalProps {
     options?: readonly string[];
   }>;
   onSubmit?: (values: AddEntryValues) => void;
+  /** When set together with `onOpenChange`, visibility is controlled by the parent. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export default function AddEntryModal({
@@ -20,8 +23,20 @@ export default function AddEntryModal({
   modalTitle,
   fields,
   onSubmit,
+  open: openControlled,
+  onOpenChange,
 }: AddEntryModalProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = openControlled !== undefined;
+  const open = isControlled ? openControlled : internalOpen;
+
+  const setOpen = (next: boolean) => {
+    if (isControlled) {
+      onOpenChange?.(next);
+    } else {
+      setInternalOpen(next);
+    }
+  };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
