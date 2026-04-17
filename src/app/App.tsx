@@ -13,6 +13,7 @@ import MapaPolskiPage from '@/pages/mapa-polski';
 import PlanySprzedazowePage from '@/pages/plany-sprzedazowe';
 import KalkulatorPvMagazynPage from '@/pages/kalkulator-pv-magazyn';
 import ZarzadzanieKontamiPage from '@/pages/zarzadzanie-kontami';
+import ProfilPage from '@/pages/profil';
 
 type ViewId =
   | 'dashboard'
@@ -24,7 +25,8 @@ type ViewId =
   | 'users-management'
   | 'calculator'
   | 'my-cooperatives'
-  | 'my-plan';
+  | 'my-plan'
+  | 'profile';
 
 interface NavItem {
   id: ViewId;
@@ -49,6 +51,7 @@ const pageTitles: Record<ViewId, string> = {
   calculator: 'Kalkulator PV + Magazyn',
   'my-cooperatives': 'Moje spoldzielnie',
   'my-plan': 'Moj plan sprzedazy',
+  profile: 'Moj profil',
 };
 
 const viewPathMap: Record<ViewId, string> = {
@@ -62,6 +65,7 @@ const viewPathMap: Record<ViewId, string> = {
   calculator: '/calculator',
   'my-cooperatives': '/my-cooperatives',
   'my-plan': '/my-plan',
+  profile: '/profil',
 };
 
 function getViewFromPathname(pathname: string): ViewId {
@@ -79,6 +83,7 @@ export default function App() {
   const [db, setDb] = useState(() => readDatabase());
   const [error, setError] = useState<string>('');
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const view = useMemo(() => getViewFromPathname(location.pathname), [location.pathname]);
   const isAuthenticated = useMemo(() => currentUser !== null, [currentUser]);
   const isCaregiver = currentUser?.role === 'opiekun' || currentUser?.role === 'caregiver';
@@ -104,6 +109,7 @@ export default function App() {
     setCurrentUser(null);
     navigate(viewPathMap.dashboard);
     setNotificationsOpen(false);
+    setMobileSidebarOpen(false);
   };
 
   const openView = (nextView: ViewId) => {
@@ -111,6 +117,7 @@ export default function App() {
     if (location.pathname !== targetPath) {
       navigate(targetPath);
     }
+    setMobileSidebarOpen(false);
   };
 
   const updateDatabase = (updater: (prev: typeof db) => typeof db) => {
@@ -324,6 +331,48 @@ export default function App() {
     }));
   };
 
+  const handleUpdateMyProfile = (payload: Pick<User, 'name' | 'email' | 'phone' | 'password'>) => {
+    if (!currentUser) return;
+
+    updateDatabase((prev) => ({
+      ...prev,
+      users: prev.users.map((user) =>
+        user.id === currentUser.id
+          ? {
+              ...user,
+              name: payload.name.trim() || user.name,
+              email: payload.email.trim() || user.email,
+              phone: payload.phone?.trim() ?? user.phone ?? '',
+              password: payload.password.trim() || user.password,
+            }
+          : user,
+      ),
+      caregivers: prev.caregivers.map((caregiver) =>
+        caregiver.id === currentUser.id
+          ? {
+              ...caregiver,
+              name: payload.name.trim() || caregiver.name,
+              email: payload.email.trim() || caregiver.email,
+              phone: payload.phone?.trim() ?? caregiver.phone ?? '',
+              password: payload.password.trim() || caregiver.password,
+            }
+          : caregiver,
+      ),
+    }));
+
+    setCurrentUser((prev) =>
+      prev
+        ? {
+            ...prev,
+            name: payload.name.trim() || prev.name,
+            email: payload.email.trim() || prev.email,
+            phone: payload.phone?.trim() ?? prev.phone ?? '',
+            password: payload.password.trim() || prev.password,
+          }
+        : prev,
+    );
+  };
+
   const handleSetVoivodeshipLead = (voivodeshipId: string, caregiverId: number | null) => {
     updateDatabase((prev) => {
       const existing = prev.voivodeshipLeads.find((lead) => lead.voivodeshipId === voivodeshipId);
@@ -413,7 +462,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <aside className={`sidebar ${mobileSidebarOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-brand">
           <h1>Wspolnoty Energetyczne</h1>
           <p>System zarzadzania</p>
@@ -436,18 +485,36 @@ export default function App() {
         </nav>
 
         <div className="sidebar-footer">
-          <div>
+          <button className="sidebar-user-btn" onClick={() => openView('profile')} type="button">
             {currentUser.name} <span>{roleLabel[currentUser.role]}</span>
-          </div>
+          </button>
           <button onClick={handleLogout} type="button">
             Wyloguj
           </button>
         </div>
       </aside>
+      {mobileSidebarOpen ? (
+        <button
+          aria-label="Zamknij menu"
+          className="sidebar-backdrop"
+          onClick={() => setMobileSidebarOpen(false)}
+          type="button"
+        />
+      ) : null}
 
       <section className="content-zone">
         <header className="topbar">
-          <h2>{pageTitles[view]}</h2>
+          <div className="topbar-title-wrap">
+            <button
+              aria-label="Otworz menu"
+              className="icon-btn sidebar-toggle-btn"
+              onClick={() => setMobileSidebarOpen((prev) => !prev)}
+              type="button"
+            >
+              <i className="fa-solid fa-bars" aria-hidden="true" />
+            </button>
+            <h2>{pageTitles[view]}</h2>
+          </div>
           <div className="topbar-actions">
             <button
               aria-label="Powiadomienia"
@@ -494,6 +561,8 @@ export default function App() {
             onUpdateCooperative={handleUpdateCooperative}
             onAddUser={handleAddUser}
             onUpdateUser={handleUpdateUser}
+            currentUser={currentUser}
+            onUpdateMyProfile={handleUpdateMyProfile}
             onSetVoivodeshipLead={handleSetVoivodeshipLead}
             onSetVoivodeshipAssignments={handleSetVoivodeshipAssignments}
           />
@@ -517,6 +586,8 @@ interface CurrentPageProps {
     userId: number,
     payload: Pick<User, 'name' | 'email' | 'phone' | 'password' | 'role' | 'isBlocked'>,
   ) => void;
+  currentUser: User;
+  onUpdateMyProfile: (payload: Pick<User, 'name' | 'email' | 'phone' | 'password'>) => void;
   onSetVoivodeshipLead: (voivodeshipId: string, caregiverId: number | null) => void;
   onSetVoivodeshipAssignments: (
     voivodeshipId: string,
@@ -539,6 +610,8 @@ function CurrentPage({
   onAddCooperative,
   onAddUser,
   onUpdateUser,
+  currentUser,
+  onUpdateMyProfile,
   onSetVoivodeshipLead,
   onSetVoivodeshipAssignments,
   onUpdateCooperative,
@@ -582,6 +655,8 @@ function CurrentPage({
       return <SpoldzielniePage cooperatives={visibleCooperatives} onAddCooperative={onAddCooperative} />;
     case 'my-plan':
       return <PlanySprzedazowePage cooperatives={visibleCooperatives} caregivers={db.caregivers} />;
+    case 'profile':
+      return <ProfilPage user={currentUser} onSave={onUpdateMyProfile} />;
     default:
       return null;
   }

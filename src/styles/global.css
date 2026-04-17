@@ -158,6 +158,20 @@ body {
   padding: 2px 8px;
 }
 
+.sidebar-user-btn {
+  border: none;
+  color: #fff;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  font-size: 13px;
+}
+
+.sidebar-user-btn:hover {
+  opacity: 0.9;
+}
+
 .sidebar-footer button {
   border: none;
   color: #fff;
@@ -186,6 +200,12 @@ body {
 
 .topbar h2 {
   margin: 0;
+}
+
+.topbar-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .topbar-actions {
@@ -254,6 +274,17 @@ body {
   border-top: 1px solid #f3f4f6;
   padding: 8px 0;
   display: grid;
+}
+
+.sidebar-toggle-btn {
+  display: none;
+  width: 38px;
+  padding: 0;
+  place-items: center;
+}
+
+.sidebar-backdrop {
+  display: none;
 }
 
 .page-content {
@@ -764,9 +795,32 @@ td {
   font-weight: 600;
 }
 
+.map-point-error {
+  margin: 10px 0 0;
+  color: #dc2626;
+  font-size: 14px;
+}
+
+.map-point-help {
+  margin: 10px 0 0;
+  color: #6d28d9;
+  font-size: 14px;
+}
+
 .leaflet-map {
   height: 520px;
   width: 100%;
+}
+
+.map-custom-points-list {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fafafa;
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
 }
 
 .map-details {
@@ -948,13 +1002,54 @@ td {
   color: #9ca3af;
 }
 
+.profile-panel {
+  width: min(560px, 100%);
+  margin: 0 auto;
+}
+
+.profile-description {
+  margin: -4px 0 16px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.profile-form {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.profile-form input {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.profile-form-actions {
+  margin-top: 4px;
+  display: flex;
+  justify-content: center;
+}
+
+.profile-success {
+  margin: 12px 0 0;
+  color: #15803d;
+  font-size: 14px;
+  text-align: center;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
   background: rgb(0 0 0 / 0.6);
   display: grid;
   place-items: center;
-  z-index: 20;
+  z-index: 2000;
 }
 
 .modal-card {
@@ -962,6 +1057,29 @@ td {
   background: #fff;
   border-radius: 20px;
   padding: 20px;
+  position: relative;
+  z-index: 2001;
+}
+
+.prompt-modal-card {
+  width: min(460px, calc(100% - 24px));
+}
+
+.prompt-modal-form {
+  display: grid;
+  gap: 12px;
+}
+
+.prompt-modal-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.prompt-modal-form input {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 10px 12px;
 }
 
 .add-entry-form {
@@ -1001,7 +1119,32 @@ td {
   }
 
   .sidebar {
-    min-height: auto;
+    min-height: 100vh;
+    width: min(300px, 82vw);
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    border: none;
+    background: rgb(15 23 42 / 0.35);
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .sidebar-toggle-btn {
+    display: inline-grid;
   }
 
   .dashboard-kpi-card,

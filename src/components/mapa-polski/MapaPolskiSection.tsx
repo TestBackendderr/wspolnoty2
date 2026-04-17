@@ -1,8 +1,8 @@
-import AddEntryModal from '@/components/common/AddEntryModal';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AppDatabase } from '@/types/domain';
+import PromptModal from '@/components/common/PromptModal';
 
 interface MapaPolskiSectionProps {
   db: AppDatabase;
@@ -18,6 +18,22 @@ interface VoivodeshipPoint {
   id: string;
   label: string;
   center: [number, number];
+  isCustom?: boolean;
+}
+
+interface CustomMapPoint {
+  id: number;
+  name: string;
+  voivodeshipId: string;
+  valueGwh: number;
+  center: [number, number];
+}
+
+interface PendingPointPayload {
+  id: number;
+  center: [number, number];
+  voivodeshipId: string;
+  voivodeshipLabel: string;
 }
 
 const VOIVODESHIPS: VoivodeshipPoint[] = [
@@ -48,6 +64,23 @@ function normalizeVoivodeship(value: string) {
     .replace(/\s+/g, '-');
 }
 
+function getNearestVoivodeshipId(center: [number, number]): string {
+  const [lat, lng] = center;
+  let nearest = VOIVODESHIPS[0];
+  let minDistance = Number.POSITIVE_INFINITY;
+
+  VOIVODESHIPS.forEach((voivodeship) => {
+    const [candidateLat, candidateLng] = voivodeship.center;
+    const distance = Math.hypot(lat - candidateLat, lng - candidateLng);
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearest = voivodeship;
+    }
+  });
+
+  return nearest.id;
+}
+
 export default function MapaPolskiSection({
   db,
   onSetVoivodeshipLead,
@@ -60,13 +93,30 @@ export default function MapaPolskiSection({
   const [leadDraft, setLeadDraft] = useState('');
   const [cooperativeDraft, setCooperativeDraft] = useState('');
   const [areaDraft, setAreaDraft] = useState('');
+  const [customPoints, setCustomPoints] = useState<CustomMapPoint[]>([]);
+  const [customPointError, setCustomPointError] = useState('');
+  const [isAddingPoint, setIsAddingPoint] = useState(false);
+  const [pendingPoint, setPendingPoint] = useState<PendingPointPayload | null>(null);
+  const [pendingPointName, setPendingPointName] = useState('');
+  const allPoints = useMemo<VoivodeshipPoint[]>(
+    () => [
+      ...VOIVODESHIPS,
+      ...customPoints.map(({ id, name, center }) => ({
+        id: String(id),
+        label: name,
+        center,
+        isCustom: true,
+      })),
+    ],
+    [customPoints],
+  );
 
   const grouped = useMemo(() => {
     const coopByVoiv = new Map<string, AppDatabase['cooperatives']>();
     const areasByVoiv = new Map<string, AppDatabase['areas']>();
     const caregiversByVoiv = new Map<string, AppDatabase['caregivers']>();
 
-    VOIVODESHIPS.forEach((v) => {
+    allPoints.forEach((v) => {
       const coops = db.cooperatives.filter((c) => normalizeVoivodeship(c.voivodeship) === v.id);
       const areas = db.areas.filter((a) => normalizeVoivodeship(a.voivodeship) === v.id);
       const caregiverIds = new Set(coops.map((c) => c.caregiverId).filter((id): id is number => id !== null));
@@ -77,7 +127,7 @@ export default function MapaPolskiSection({
     });
 
     return { coopByVoiv, areasByVoiv, caregiversByVoiv };
-  }, [db]);
+  }, [allPoints, db]);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -113,7 +163,7 @@ export default function MapaPolskiSection({
 
     markersLayer.clearLayers();
 
-    VOIVODESHIPS.forEach((voiv) => {
+    allPoints.forEach((voiv) => {
       const caregiversCount = grouped.caregiversByVoiv.get(voiv.id)?.length ?? 0;
       const cooperativesCount = grouped.coopByVoiv.get(voiv.id)?.length ?? 0;
       const leadExists = db.voivodeshipLeads.some(
@@ -137,10 +187,41 @@ export default function MapaPolskiSection({
       marker.on('click', () => setSelectedVoivodeship(voiv.id));
       marker.addTo(markersLayer);
     });
-  }, [db.voivodeshipLeads, grouped]);
 
-  const selectedMeta = VOIVODESHIPS.find((v) => v.id === selectedVoivodeship) ?? null;
-  const selectedCaregivers = selectedVoivodeship
+  }, [allPoints, db.voivodeshipLeads, grouped]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const handleMapClick = (event: L.LeafletMouseEvent) => {
+      if (!isAddingPoint) return;
+
+      const nextId = Date.now();
+      const pointCenter: [number, number] = [event.latlng.lat, event.latlng.lng];
+      const nearestVoivodeshipId = getNearestVoivodeshipId(pointCenter);
+      const nearestVoivodeshipLabel =
+        VOIVODESHIPS.find((voivodeship) => voivodeship.id === nearestVoivodeshipId)?.label ?? 'Polska';
+
+      setPendingPoint({
+        id: nextId,
+        center: pointCenter,
+        voivodeshipId: nearestVoivodeshipId,
+        voivodeshipLabel: nearestVoivodeshipLabel,
+      });
+      setPendingPointName('');
+      setIsAddingPoint(false);
+    };
+
+    map.on('click', handleMapClick);
+    return () => {
+      map.off('click', handleMapClick);
+    };
+  }, [isAddingPoint]);
+
+  const selectedMeta = allPoints.find((v) => v.id === selectedVoivodeship) ?? null;
+  const isCustomSelectedPoint = Boolean(selectedMeta?.isCustom);
+  const selectedCaregiversByVoivodeship = selectedVoivodeship
     ? grouped.caregiversByVoiv.get(selectedVoivodeship) ?? []
     : [];
   const selectedCooperatives = selectedVoivodeship
@@ -154,10 +235,18 @@ export default function MapaPolskiSection({
   const selectedAssignment = selectedVoivodeship
     ? db.voivodeshipAssignments.find((assignment) => assignment.voivodeshipId === selectedVoivodeship) ?? null
     : null;
+  const cooperativeOptions = isCustomSelectedPoint ? db.cooperatives : selectedCooperatives;
+  const areaOptions = isCustomSelectedPoint ? db.areas : selectedAreas;
   const assignedCooperatives = selectedAssignment
     ? db.cooperatives.filter((coop) => selectedAssignment.cooperativeIds.includes(coop.id))
     : [];
   const assignedAreas = selectedAssignment ? db.areas.filter((area) => selectedAssignment.areaIds.includes(area.id)) : [];
+  const selectedCaregivers = isCustomSelectedPoint
+    ? db.caregivers.filter((caregiver) => {
+        if (selectedLeadId === caregiver.id) return true;
+        return assignedCooperatives.some((coop) => coop.caregiverId === caregiver.id);
+      })
+    : selectedCaregiversByVoivodeship;
 
   useEffect(() => {
     if (!selectedVoivodeship) {
@@ -176,16 +265,54 @@ export default function MapaPolskiSection({
     onSetVoivodeshipAssignments(selectedVoivodeship, nextCoopIds, nextAreaIds);
   };
 
+  const closePendingPointModal = () => {
+    setPendingPoint(null);
+    setPendingPointName('');
+  };
+
+  const confirmPendingPoint = () => {
+    if (!pendingPoint) return;
+    const pointName = pendingPointName.trim();
+    if (!pointName) {
+      setCustomPointError('Nie dodano punktu: nazwa nie moze byc pusta.');
+      return;
+    }
+
+    setCustomPoints((prev) => [
+      ...prev,
+      {
+        id: pendingPoint.id,
+        name: `${pointName} (${pendingPoint.voivodeshipLabel})`,
+        voivodeshipId: pendingPoint.voivodeshipId,
+        valueGwh: 0,
+        center: pendingPoint.center,
+      },
+    ]);
+    setCustomPointError('');
+    closePendingPointModal();
+  };
+
   return (
     <>
-      <AddEntryModal
-        buttonLabel="Dodaj punkt na mapie"
-        modalTitle="Dodaj punkt na mapie"
-        fields={[
-          { id: 'map-point-name', label: 'Nazwa punktu', placeholder: 'np. Warszawa - Centrum' },
-          { id: 'map-point-voivodeship', label: 'Wojewodztwo', placeholder: 'Mazowieckie' },
-          { id: 'map-point-value', label: 'Wartosc (GWh)', type: 'number', placeholder: '12' },
-        ]}
+      <button className="add-entity-btn" onClick={() => setIsAddingPoint(true)} type="button">
+        <span>+</span>
+        <span>Dodaj punkt na mapie</span>
+      </button>
+      {isAddingPoint ? (
+        <p className="map-point-help">Kliknij w wybrane miejsce na mapie, aby dodac punkt.</p>
+      ) : null}
+      {customPointError ? <p className="map-point-error">{customPointError}</p> : null}
+      <PromptModal
+        open={pendingPoint !== null}
+        title="Nowy punkt na mapie"
+        label="Nazwa punktu"
+        value={pendingPointName}
+        placeholder="np. Warszawa - Centrum"
+        confirmLabel="Dodaj punkt"
+        cancelLabel="Anuluj"
+        onChange={setPendingPointName}
+        onConfirm={confirmPendingPoint}
+        onCancel={closePendingPointModal}
       />
       <section className="panel">
         <div className="map-head">
@@ -205,6 +332,17 @@ export default function MapaPolskiSection({
           </div>
         </div>
         <div className="leaflet-map" ref={mapContainerRef} />
+        {customPoints.length ? (
+          <div className="map-custom-points-list">
+            <strong>Dodane punkty:</strong>
+            {customPoints.map((point) => (
+              <div key={point.id}>
+                • {point.name} ({point.valueGwh} GWh,{' '}
+                {VOIVODESHIPS.find((voiv) => voiv.id === point.voivodeshipId)?.label ?? point.voivodeshipId})
+              </div>
+            ))}
+          </div>
+        ) : null}
         {selectedMeta ? (
           <div className="map-details">
             <div className="map-details-top">
@@ -254,7 +392,7 @@ export default function MapaPolskiSection({
                 <div className="map-head-right" style={{ marginTop: 8, alignItems: 'flex-start' }}>
                   <select value={cooperativeDraft} onChange={(event) => setCooperativeDraft(event.target.value)}>
                     <option value="">Brak</option>
-                    {selectedCooperatives.map((coop) => (
+                    {cooperativeOptions.map((coop) => (
                       <option key={coop.id} value={coop.id}>
                         {coop.name}
                       </option>
@@ -301,7 +439,7 @@ export default function MapaPolskiSection({
                 <div className="map-head-right" style={{ marginTop: 8, alignItems: 'flex-start' }}>
                   <select value={areaDraft} onChange={(event) => setAreaDraft(event.target.value)}>
                     <option value="">Brak</option>
-                    {selectedAreas.map((area) => (
+                    {areaOptions.map((area) => (
                       <option key={area.id} value={area.id}>
                         {area.name}
                       </option>
