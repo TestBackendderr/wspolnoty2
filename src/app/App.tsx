@@ -14,6 +14,8 @@ import PlanySprzedazowePage from '@/pages/plany-sprzedazowe';
 import KalkulatorPvMagazynPage from '@/pages/kalkulator-pv-magazyn';
 import ZarzadzanieKontamiPage from '@/pages/zarzadzanie-kontami';
 import ProfilPage from '@/pages/profil';
+import LoginCard from '@/components/auth/LoginCard';
+import RecoverPasswordCard from '@/components/auth/RecoverPasswordCard';
 
 type ViewId =
   | 'dashboard'
@@ -33,6 +35,8 @@ interface NavItem {
   label: string;
   iconClass: string;
 }
+
+type AuthView = 'login' | 'recover';
 
 const roleLabel: Record<UserRole, string> = {
   admin: 'Admin',
@@ -76,6 +80,12 @@ function getViewFromPathname(pathname: string): ViewId {
   return 'dashboard';
 }
 
+function getAuthViewFromPathname(pathname: string): AuthView {
+  const normalizedPath = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
+  if (normalizedPath === '/recover') return 'recover';
+  return 'login';
+}
+
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -85,15 +95,13 @@ export default function App() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const view = useMemo(() => getViewFromPathname(location.pathname), [location.pathname]);
+  const authView = useMemo(() => getAuthViewFromPathname(location.pathname), [location.pathname]);
   const isAuthenticated = useMemo(() => currentUser !== null, [currentUser]);
   const isCaregiver = currentUser?.role === 'opiekun' || currentUser?.role === 'caregiver';
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const email = String(formData.get('email') ?? '').trim();
-    const password = String(formData.get('password') ?? '');
-
+  const handleLogin = (payload: { email: string; password: string }) => {
+    const email = payload.email.trim();
+    const password = payload.password;
     const loggedInUser = login({ email, password });
     if (!loggedInUser) {
       setError('Nieprawidlowy email lub haslo.');
@@ -102,12 +110,13 @@ export default function App() {
 
     setError('');
     setCurrentUser(loggedInUser);
+    navigate(viewPathMap.dashboard);
   };
 
   const handleLogout = () => {
     logout();
     setCurrentUser(null);
-    navigate(viewPathMap.dashboard);
+    navigate('/login');
     setNotificationsOpen(false);
     setMobileSidebarOpen(false);
   };
@@ -413,25 +422,66 @@ export default function App() {
     });
   };
 
+  const handleRecoverEmailSubmit = (email: string): { ok: true; code: string } | { ok: false; error: string } => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = db.users.find((candidate) => candidate.email.toLowerCase() === normalizedEmail);
+    if (!user) {
+      return { ok: false, error: 'Nie znaleziono konta o podanym adresie e-mail.' };
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    return { ok: true, code };
+  };
+
+  const handlePasswordReset = (email: string, newPassword: string): { ok: true } | { ok: false; error: string } => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = db.users.find((candidate) => candidate.email.toLowerCase() === normalizedEmail);
+    if (!user) {
+      return { ok: false, error: 'Nie znaleziono konta do zmiany hasla.' };
+    }
+
+    updateDatabase((prev) => ({
+      ...prev,
+      users: prev.users.map((candidate) =>
+        candidate.email.toLowerCase() === normalizedEmail ? { ...candidate, password: newPassword } : candidate,
+      ),
+      caregivers: prev.caregivers.map((candidate) =>
+        candidate.email.toLowerCase() === normalizedEmail ? { ...candidate, password: newPassword } : candidate,
+      ),
+    }));
+
+    return { ok: true };
+  };
+
   if (!isAuthenticated || currentUser === null) {
+    const loginEmailFromPath = new URLSearchParams(location.search).get('email') ?? '';
+    const initialLoginEmail = loginEmailFromPath;
+
     return (
       <div className="auth-layout">
-        <form className="auth-card" onSubmit={handleSubmit}>
-          <h1>Wspolnoty Energetyczne</h1>
-          <p>System zarzadzania</p>
+        {authView === 'recover' ? (
+          <RecoverPasswordCard
+            initialEmail={loginEmailFromPath}
+            onEmailSubmit={handleRecoverEmailSubmit}
+            onPasswordReset={handlePasswordReset}
+            onBackToLogin={() => {
+              setError('');
+              navigate(`/login?email=${encodeURIComponent(loginEmailFromPath)}`);
+            }}
+          />
+        ) : null}
 
-          <label htmlFor="email">Adres e-mail</label>
-          <input id="email" name="email" type="email" required />
-
-          <label htmlFor="password">Haslo</label>
-          <input id="password" name="password" type="password" required />
-
-          {error ? <div className="form-error">{error}</div> : null}
-
-          <button type="submit" className="primary-btn">
-            Zaloguj sie
-          </button>
-        </form>
+        {authView === 'login' ? (
+          <LoginCard
+            initialEmail={initialLoginEmail}
+            error={error}
+            onSubmit={handleLogin}
+            onOpenRecover={(email) => {
+              setError('');
+              navigate(`/recover?email=${encodeURIComponent(email)}`);
+            }}
+          />
+        ) : null}
       </div>
     );
   }
