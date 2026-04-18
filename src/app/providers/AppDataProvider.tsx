@@ -20,12 +20,14 @@ import { AppDataContext, type AppDataContextValue } from './appDataContext';
 
 /** Pages that need the full cooperatives list loaded into global state. */
 const PATHS_REQUIRING_FULL_COOPERATIVES = new Set<string>([
-  '/dashboard',
   '/mapa',
   '/sales-plans',
   '/my-cooperatives',
   '/my-plan',
 ]);
+
+/** Routes that read `db.caregivers` from AppData (synced from full `users`). */
+const PATHS_REQUIRING_FULL_USERS = new Set<string>(['/mapa', '/sales-plans', '/my-plan']);
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const { currentUser, authResolved, isCaregiver, updateCurrentUser } = useAuth();
@@ -45,29 +47,47 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const coopsSyncedRef = useRef(false);
   const coopsInFlightRef = useRef(false);
+  const usersSyncedRef = useRef(false);
+  const usersInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!currentUser) {
       coopsSyncedRef.current = false;
       coopsInFlightRef.current = false;
+      usersSyncedRef.current = false;
+      usersInFlightRef.current = false;
       setDbInternal(emptyAppDatabase);
     }
   }, [currentUser]);
 
   useEffect(() => {
     if (!authResolved || !currentUser) return;
+    if (!PATHS_REQUIRING_FULL_USERS.has(location.pathname)) return;
+    if (usersSyncedRef.current || usersInFlightRef.current) return;
+
+    usersInFlightRef.current = true;
+    let cancelled = false;
     void (async () => {
       try {
         const users = await listAllUsers();
+        if (cancelled) return;
+        usersSyncedRef.current = true;
         setDb((prev) => ({
           ...prev,
           users: users.length > 0 ? users : prev.users,
         }));
+        setError('');
       } catch {
         setError('Nie udalo sie pobrac danych z backendu.');
+      } finally {
+        usersInFlightRef.current = false;
       }
     })();
-  }, [authResolved, currentUser]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authResolved, currentUser, location.pathname]);
 
   useEffect(() => {
     if (!authResolved || !currentUser) return;

@@ -1,19 +1,44 @@
 import CooperativesTable from '@/components/common/CooperativesTable';
-import type { AppDatabase, Cooperative } from '@/types/domain';
+import type { Cooperative } from '@/types/domain';
+import type { DashboardStats } from '@/services/dashboard';
 
 interface DashboardSectionProps {
-  db: AppDatabase;
-  cooperatives: Cooperative[];
+  stats: DashboardStats | null;
+  isLoading: boolean;
+  error: string;
 }
 
-export default function DashboardSection({ db, cooperatives }: DashboardSectionProps) {
-  const totalCoops = cooperatives.length;
-  const activeCoops = cooperatives.filter((c) => c.status === 'aktywna').length;
-  const totalCaregivers = db.caregivers.length;
-  const totalAreas = db.areas.length;
-  const totalInstalledPower = cooperatives.reduce((sum, item) => sum + (item.installedPower ?? 0), 0);
+export default function DashboardSection({ stats, isLoading, error }: DashboardSectionProps) {
+  if (isLoading) {
+    return (
+      <section className="panel">
+        <p>Trwa ladowanie danych dashboardu...</p>
+      </section>
+    );
+  }
 
-  const memberCounts = cooperatives.reduce(
+  if (error) {
+    return (
+      <section className="panel">
+        <p className="empty-row">{error}</p>
+      </section>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <section className="panel">
+        <p className="empty-row">Brak danych dashboardu.</p>
+      </section>
+    );
+  }
+
+  const voivodeshipBars = [...stats.cooperativesByRegion]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+  const maxVoivodeshipValue = voivodeshipBars.length > 0 ? voivodeshipBars[0].count : 1;
+  const latestCooperatives = stats.recentCooperatives.slice(0, 6);
+  const memberCounts = stats.recentCooperatives.reduce(
     (acc, coop) => {
       coop.members.forEach((member) => {
         const status = member.status.toLowerCase();
@@ -37,35 +62,24 @@ export default function DashboardSection({ db, cooperatives }: DashboardSectionP
     )`,
   };
 
-  const voivodeshipData = cooperatives.reduce<Record<string, number>>((acc, coop) => {
-    const key = coop.voivodeship || 'nieokreslone';
-    acc[key] = (acc[key] ?? 0) + 1;
-    return acc;
-  }, {});
-  const voivodeshipBars = Object.entries(voivodeshipData).sort((a, b) => b[1] - a[1]).slice(0, 8);
-  const maxVoivodeshipValue = voivodeshipBars.length > 0 ? voivodeshipBars[0][1] : 1;
-
-  const latestCooperatives = [...cooperatives].sort((a, b) => b.id - a.id).slice(0, 6);
-
   return (
     <>
       <section className="dashboard-grid">
         <article className="dashboard-kpi-card">
           <p>Spoldzielnie</p>
-          <strong>{totalCoops}</strong>
-          <small>{activeCoops} aktywnych</small>
+          <strong>{stats.cooperatives}</strong>
         </article>
         <article className="dashboard-kpi-card">
           <p>Opiekunowie</p>
-          <strong>{totalCaregivers}</strong>
+          <strong>{stats.users}</strong>
         </article>
         <article className="dashboard-kpi-card">
           <p>Tereny</p>
-          <strong>{totalAreas}</strong>
+          <strong>{stats.areas}</strong>
         </article>
         <article className="dashboard-kpi-card">
           <p>Calkowita zainstalowana moc</p>
-          <strong>{totalInstalledPower} kWp</strong>
+          <strong>{stats.totalInstalledPowerKW} kWp</strong>
         </article>
 
         <article className="dashboard-panel dashboard-members-panel">
@@ -107,16 +121,16 @@ export default function DashboardSection({ db, cooperatives }: DashboardSectionP
           <h3>Liczba spoldzielni w wojewodztwach</h3>
           {voivodeshipBars.length ? (
             <div className="voivodeship-bars">
-              {voivodeshipBars.map(([name, count]) => (
-                <div className="voivodeship-row" key={name}>
-                  <span>{name}</span>
+              {voivodeshipBars.map((row) => (
+                <div className="voivodeship-row" key={row.region}>
+                  <span>{row.region}</span>
                   <div className="voivodeship-bar-track">
                     <div
                       className="voivodeship-bar-fill"
-                      style={{ width: `${(count / maxVoivodeshipValue) * 100}%` }}
+                      style={{ width: `${(row.count / maxVoivodeshipValue) * 100}%` }}
                     />
                   </div>
-                  <strong>{count}</strong>
+                  <strong>{row.count}</strong>
                 </div>
               ))}
             </div>
@@ -150,7 +164,7 @@ export default function DashboardSection({ db, cooperatives }: DashboardSectionP
 
       <section className="panel">
         <h3>Tabela spoldzielni</h3>
-        <CooperativesTable cooperatives={cooperatives} />
+        <CooperativesTable cooperatives={stats.recentCooperatives} />
       </section>
     </>
   );
