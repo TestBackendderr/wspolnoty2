@@ -1,6 +1,23 @@
 import type { User } from '@/types/domain';
 import { ApiError, apiRequest } from '@/services/api';
 
+export class BlockedAccountError extends Error {
+  constructor() {
+    super('BLOCKED_ACCOUNT');
+    this.name = 'BlockedAccountError';
+    Object.setPrototypeOf(this, BlockedAccountError.prototype);
+  }
+}
+
+function isBlockedLoginMessage(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('blocked') ||
+    normalized.includes('zablokow') ||
+    normalized.includes('заблок')
+  );
+}
+
 export interface LoginPayload {
   email: string;
   password: string;
@@ -52,6 +69,9 @@ export async function login(payload: LoginPayload): Promise<User | null> {
     return mapAuthUser(user);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
+      if (isBlockedLoginMessage(error.message)) {
+        throw new BlockedAccountError();
+      }
       return null;
     }
     throw error;

@@ -37,7 +37,7 @@ export default function DashboardSection({ stats, isLoading, error }: DashboardS
     .sort((a, b) => b.count - a.count)
     .slice(0, 8);
   const maxVoivodeshipValue = voivodeshipBars.length > 0 ? voivodeshipBars[0].count : 1;
-  const latestCooperatives = stats.recentCooperatives.slice(0, 6);
+  const latestCooperatives = stats.recentCooperatives.slice(0, 5);
   const memberCounts = stats.recentCooperatives.reduce(
     (acc, coop) => {
       coop.members.forEach((member) => {

@@ -1,9 +1,44 @@
+import { useMemo, useState } from 'react';
+
 import type { Cooperative } from '@/types/domain';
+
+type SortKey = 'name' | 'voivodeship' | 'status' | 'plannedPower' | 'installedPower';
 
 interface CooperativesTableProps {
   cooperatives: Cooperative[];
   onEditCooperative?: (coop: Cooperative) => void;
   onViewHistory?: (coop: Cooperative) => void;
+}
+
+function compareCooperatives(
+  a: Cooperative,
+  b: Cooperative,
+  key: SortKey,
+  dir: 'asc' | 'desc',
+): number {
+  const sign = dir === 'asc' ? 1 : -1;
+  let cmp = 0;
+  switch (key) {
+    case 'name':
+      cmp = a.name.localeCompare(b.name, 'pl', { sensitivity: 'base' });
+      break;
+    case 'voivodeship':
+      cmp = a.voivodeship.localeCompare(b.voivodeship, 'pl', { sensitivity: 'base' });
+      break;
+    case 'status':
+      cmp = a.status.localeCompare(b.status, 'pl', { sensitivity: 'base' });
+      break;
+    case 'plannedPower':
+      cmp = a.plannedPower - b.plannedPower;
+      break;
+    case 'installedPower':
+      cmp = a.installedPower - b.installedPower;
+      break;
+    default:
+      cmp = 0;
+  }
+  if (cmp !== 0) return sign * cmp;
+  return a.id - b.id;
 }
 
 export default function CooperativesTable({
@@ -12,22 +47,92 @@ export default function CooperativesTable({
   onViewHistory,
 }: CooperativesTableProps) {
   const showActions = Boolean(onEditCooperative) || Boolean(onViewHistory);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const sortedCooperatives = useMemo(() => {
+    if (!sortKey) return cooperatives;
+    return [...cooperatives].sort((a, b) => compareCooperatives(a, b, sortKey, sortDir));
+  }, [cooperatives, sortKey, sortDir]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  const sortIndicator = (key: SortKey) => {
+    if (sortKey !== key) return <span className="table-sort-placeholder" aria-hidden />;
+    return (
+      <span className="table-sort-arrow" aria-hidden>
+        {sortDir === 'asc' ? '\u2191' : '\u2193'}
+      </span>
+    );
+  };
 
   return (
     <div className="table-wrapper">
       <table>
         <thead>
           <tr>
-            <th>Nazwa</th>
-            <th>Województwo</th>
-            <th>Status</th>
-            <th>Moc planowana</th>
-            <th>Moc zainstalowana</th>
+            <th scope="col">
+              <button
+                type="button"
+                className={`table-sort-btn ${sortKey === 'name' ? 'table-sort-active' : ''}`}
+                onClick={() => toggleSort('name')}
+              >
+                Nazwa
+                {sortIndicator('name')}
+              </button>
+            </th>
+            <th scope="col">
+              <button
+                type="button"
+                className={`table-sort-btn ${sortKey === 'voivodeship' ? 'table-sort-active' : ''}`}
+                onClick={() => toggleSort('voivodeship')}
+              >
+                Województwo
+                {sortIndicator('voivodeship')}
+              </button>
+            </th>
+            <th scope="col">
+              <button
+                type="button"
+                className={`table-sort-btn ${sortKey === 'status' ? 'table-sort-active' : ''}`}
+                onClick={() => toggleSort('status')}
+              >
+                Status
+                {sortIndicator('status')}
+              </button>
+            </th>
+            <th scope="col">
+              <button
+                type="button"
+                className={`table-sort-btn ${sortKey === 'plannedPower' ? 'table-sort-active' : ''}`}
+                onClick={() => toggleSort('plannedPower')}
+              >
+                Moc planowana
+                {sortIndicator('plannedPower')}
+              </button>
+            </th>
+            <th scope="col">
+              <button
+                type="button"
+                className={`table-sort-btn ${sortKey === 'installedPower' ? 'table-sort-active' : ''}`}
+                onClick={() => toggleSort('installedPower')}
+              >
+                Moc zainstalowana
+                {sortIndicator('installedPower')}
+              </button>
+            </th>
             {showActions ? <th>Akcje</th> : null}
           </tr>
         </thead>
         <tbody>
-          {cooperatives.map((coop) => (
+          {sortedCooperatives.map((coop) => (
             <tr key={coop.id}>
               <td>{coop.name}</td>
               <td>{coop.voivodeship}</td>
@@ -60,7 +165,7 @@ export default function CooperativesTable({
               ) : null}
             </tr>
           ))}
-          {cooperatives.length === 0 ? (
+          {sortedCooperatives.length === 0 ? (
             <tr>
               <td colSpan={showActions ? 6 : 5} className="empty-row">
                 Brak spoldzielni

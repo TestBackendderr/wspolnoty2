@@ -859,6 +859,43 @@ td {
   padding: 10px 8px;
 }
 
+.table-sort-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-align: left;
+}
+
+.table-sort-btn:hover {
+  color: #4f46e5;
+}
+
+.table-sort-active {
+  color: #4f46e5;
+}
+
+.table-sort-placeholder {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+  visibility: hidden;
+}
+
+.table-sort-arrow {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+  font-size: 0.85em;
+}
+
 .simple-list {
   margin: 0;
   padding-left: 18px;

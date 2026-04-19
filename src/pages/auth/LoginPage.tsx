@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import LoginCard from '@/components/auth/LoginCard';
 import { useAuth } from '@/app/providers/authContext';
+import { BlockedAccountError } from '@/services/auth';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -23,7 +24,11 @@ export default function LoginPage() {
       setError('');
       const fromState = (location.state as { from?: string } | null)?.from;
       navigate(fromState ?? '/dashboard', { replace: true });
-    } catch {
+    } catch (err) {
+      if (err instanceof BlockedAccountError) {
+        setError('To konto zostalo zablokowane.');
+        return;
+      }
       setError('Nie udalo sie zalogowac. Sprobuj ponownie.');
     }
   };
