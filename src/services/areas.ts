@@ -7,6 +7,13 @@ interface AreaApiItem {
   type: string;
   postalCode: string;
   region: string;
+  responsibleUser: {
+    id: number;
+    name: string;
+    surname: string;
+    email: string;
+    phoneNumber: string;
+  } | null;
 }
 
 function mapAreaFromApi(item: AreaApiItem): Area {
@@ -16,6 +23,7 @@ function mapAreaFromApi(item: AreaApiItem): Area {
     type: item.type,
     postalCode: item.postalCode,
     voivodeship: item.region,
+    responsibleUser: item.responsibleUser,
   };
 }
 
@@ -66,6 +74,7 @@ export interface CreateAreaPayload {
   type: string;
   postalCode: string;
   region: string;
+  responsibleUserId?: number;
 }
 
 export async function createArea(payload: CreateAreaPayload): Promise<Area> {
@@ -76,7 +85,13 @@ export async function createArea(payload: CreateAreaPayload): Promise<Area> {
   return mapAreaFromApi(item);
 }
 
-export type UpdateAreaPayload = Partial<CreateAreaPayload>;
+export interface UpdateAreaPayload {
+  name?: string;
+  type?: string;
+  postalCode?: string;
+  region?: string;
+  responsibleUserId?: number | null;
+}
 
 export async function updateArea(
   id: number,

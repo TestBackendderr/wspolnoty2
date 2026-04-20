@@ -2,10 +2,10 @@ import PlanySprzedazoweSection from '@/components/plany-sprzedazowe/PlanySprzeda
 import { useAppData } from '@/app/providers/appDataContext';
 
 export default function PlanySprzedazowePage() {
-  const { db, visibleCooperatives } = useAppData();
+  const { db } = useAppData();
   return (
     <PlanySprzedazoweSection
-      cooperatives={visibleCooperatives}
+      salesPlans={db.salesPlans}
       caregivers={db.caregivers}
     />
   );

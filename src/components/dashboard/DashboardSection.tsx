@@ -38,18 +38,7 @@ export default function DashboardSection({ stats, isLoading, error }: DashboardS
     .slice(0, 8);
   const maxVoivodeshipValue = voivodeshipBars.length > 0 ? voivodeshipBars[0].count : 1;
   const latestCooperatives = stats.recentCooperatives.slice(0, 5);
-  const memberCounts = stats.recentCooperatives.reduce(
-    (acc, coop) => {
-      coop.members.forEach((member) => {
-        const status = member.status.toLowerCase();
-        if (status.includes('aktywn')) acc.active += 1;
-        else if (status.includes('rejestrow')) acc.registering += 1;
-        else acc.inactive += 1;
-      });
-      return acc;
-    },
-    { active: 0, registering: 0, inactive: 0 },
-  );
+  const memberCounts = stats.usersByActivityStatus;
   const totalMembers = memberCounts.active + memberCounts.registering + memberCounts.inactive;
   const activePercent = totalMembers ? (memberCounts.active / totalMembers) * 100 : 0;
   const registeringPercent = totalMembers ? (memberCounts.registering / totalMembers) * 100 : 0;

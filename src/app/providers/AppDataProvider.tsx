@@ -21,13 +21,12 @@ import { AppDataContext, type AppDataContextValue } from './appDataContext';
 /** Pages that need the full cooperatives list loaded into global state. */
 const PATHS_REQUIRING_FULL_COOPERATIVES = new Set<string>([
   '/mapa',
-  '/sales-plans',
   '/my-cooperatives',
   '/my-plan',
 ]);
 
 /** Routes that read `db.caregivers` from AppData (synced from full `users`). */
-const PATHS_REQUIRING_FULL_USERS = new Set<string>(['/mapa', '/sales-plans', '/my-plan']);
+const PATHS_REQUIRING_FULL_USERS = new Set<string>(['/mapa', '/my-plan']);
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const { currentUser, authResolved, isCaregiver, updateCurrentUser } = useAuth();
@@ -35,6 +34,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const [db, setDbInternal] = useState<AppDatabase>(emptyAppDatabase);
   const [error, setError] = useState('');
+  const [usersRetryTick, setUsersRetryTick] = useState(0);
+  const [coopsRetryTick, setCoopsRetryTick] = useState(0);
 
   const setDb = (
     update: AppDatabase | ((prev: AppDatabase) => AppDatabase),
@@ -67,6 +68,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
     usersInFlightRef.current = true;
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     void (async () => {
       try {
         const users = await listAllUsers();
@@ -76,9 +78,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           ...prev,
           users: users.length > 0 ? users : prev.users,
         }));
-        setError('');
       } catch {
-        setError('Nie udalo sie pobrac danych z backendu.');
+        if (cancelled) return;
+        retryTimer = setTimeout(() => {
+          setUsersRetryTick((v) => v + 1);
+        }, 2500);
       } finally {
         usersInFlightRef.current = false;
       }
@@ -86,8 +90,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [authResolved, currentUser, location.pathname]);
+  }, [authResolved, currentUser, location.pathname, usersRetryTick]);
 
   useEffect(() => {
     if (!authResolved || !currentUser) return;
@@ -96,15 +101,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
     coopsInFlightRef.current = true;
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     void (async () => {
       try {
         const cooperatives = await listAllCooperatives();
         if (cancelled) return;
         coopsSyncedRef.current = true;
         setDb((prev) => ({ ...prev, cooperatives }));
-        setError('');
       } catch {
-        setError('Nie udalo sie pobrac spoldzielni.');
+        if (cancelled) return;
+        retryTimer = setTimeout(() => {
+          setCoopsRetryTick((v) => v + 1);
+        }, 2500);
       } finally {
         coopsInFlightRef.current = false;
       }
@@ -112,8 +120,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [authResolved, currentUser, location.pathname]);
+  }, [authResolved, currentUser, location.pathname, coopsRetryTick]);
 
   const handleAddCooperative: AppDataContextValue['handleAddCooperative'] = async (
     values: AddEntryValues,

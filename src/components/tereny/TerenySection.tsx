@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { useAuth } from '@/app/providers/authContext';
 import { VOIVODESHIPS } from '@/constants/voivodeships';
 import {
   createArea,
@@ -7,7 +8,8 @@ import {
   listAreas,
   updateArea,
 } from '@/services/areas';
-import type { Area } from '@/types/domain';
+import { listUsers } from '@/services/users';
+import type { Area, User } from '@/types/domain';
 
 const PAGE_SIZE = 15;
 
@@ -16,10 +18,14 @@ interface EditState {
   type: string;
   postalCode: string;
   voivodeship: string;
+  responsibleUserId: string;
 }
 
 export default function TerenySection() {
+  const { currentUser } = useAuth();
+  const canManageAreas = currentUser?.role === 'admin';
   const [areas, setAreas] = useState<Area[]>([]);
+  const [caregivers, setCaregivers] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
@@ -36,6 +42,7 @@ export default function TerenySection() {
     type: '',
     postalCode: '',
     voivodeship: '',
+    responsibleUserId: '',
   });
   const [addLoading, setAddLoading] = useState(false);
 
@@ -45,6 +52,7 @@ export default function TerenySection() {
     type: '',
     postalCode: '',
     voivodeship: '',
+    responsibleUserId: '',
   });
   const [editLoading, setEditLoading] = useState(false);
 
@@ -85,9 +93,30 @@ export default function TerenySection() {
     void fetchList();
   }, [fetchList]);
 
+  useEffect(() => {
+    if (!canManageAreas) return;
+    void (async () => {
+      try {
+        const result = await listUsers({
+          page: 1,
+          limit: 200,
+          role: 'OPIEKUN',
+          sortOrder: 'asc',
+        });
+        setCaregivers(result.data);
+      } catch {
+        setError('Nie udalo sie pobrac listy opiekunow.');
+      }
+    })();
+  }, [canManageAreas]);
+
   const handleAddSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canManageAreas) return;
     if (!addValues.name.trim()) return;
+    const responsibleUserId = addValues.responsibleUserId
+      ? Number(addValues.responsibleUserId)
+      : undefined;
     try {
       setAddLoading(true);
       await createArea({
@@ -95,10 +124,17 @@ export default function TerenySection() {
         type: addValues.type.trim(),
         postalCode: addValues.postalCode.trim(),
         region: addValues.voivodeship,
+        ...(responsibleUserId ? { responsibleUserId } : {}),
       });
       setError('');
       setAddOpen(false);
-      setAddValues({ name: '', type: '', postalCode: '', voivodeship: '' });
+      setAddValues({
+        name: '',
+        type: '',
+        postalCode: '',
+        voivodeship: '',
+        responsibleUserId: '',
+      });
       setPage(1);
       setListVersion((v) => v + 1);
     } catch {
@@ -109,18 +145,24 @@ export default function TerenySection() {
   };
 
   const openEdit = (area: Area) => {
+    if (!canManageAreas) return;
     setEditId(area.id);
     setEditValues({
       name: area.name,
       type: area.type,
       postalCode: area.postalCode,
       voivodeship: area.voivodeship,
+      responsibleUserId: area.responsibleUser ? String(area.responsibleUser.id) : '',
     });
   };
 
   const handleEditSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canManageAreas) return;
     if (editId === null) return;
+    const responsibleUserId = editValues.responsibleUserId
+      ? Number(editValues.responsibleUserId)
+      : null;
     try {
       setEditLoading(true);
       const updated = await updateArea(editId, {
@@ -128,6 +170,7 @@ export default function TerenySection() {
         type: editValues.type.trim(),
         postalCode: editValues.postalCode.trim(),
         region: editValues.voivodeship,
+        responsibleUserId,
       });
       setAreas((prev) =>
         prev.map((a) => (a.id === updated.id ? updated : a)),
@@ -142,6 +185,7 @@ export default function TerenySection() {
   };
 
   const handleDelete = async (id: number) => {
+    if (!canManageAreas) return;
     if (!window.confirm('Czy na pewno chcesz usunac ten teren?')) return;
     try {
       await deleteArea(id);
@@ -151,6 +195,8 @@ export default function TerenySection() {
       setError('Nie udalo sie usunac terenu.');
     }
   };
+
+  const tableColSpan = canManageAreas ? 6 : 5;
 
   const filterBar = (
     <div
@@ -241,14 +287,16 @@ export default function TerenySection() {
     <section className="panel">
       <div className="section-head-with-action">
         <h3>Tereny ({total})</h3>
-        <button
-          className="add-entity-btn"
-          onClick={() => setAddOpen(true)}
-          type="button"
-        >
-          <span>+</span>
-          <span>Dodaj teren</span>
-        </button>
+        {canManageAreas ? (
+          <button
+            className="add-entity-btn"
+            onClick={() => setAddOpen(true)}
+            type="button"
+          >
+            <span>+</span>
+            <span>Dodaj teren</span>
+          </button>
+        ) : null}
       </div>
 
       {error ? <div className="email-warning">{error}</div> : null}
@@ -267,7 +315,8 @@ export default function TerenySection() {
                   <th>Nazwa</th>
                   <th>Kod pocztowy</th>
                   <th>Wojewodztwo</th>
-                  <th>Akcje</th>
+                  <th>Opiekun</th>
+                  {canManageAreas ? <th>Akcje</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -278,28 +327,35 @@ export default function TerenySection() {
                     <td>{area.postalCode || '-'}</td>
                     <td>{area.voivodeship || '-'}</td>
                     <td>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button
-                          className="table-action-btn"
-                          onClick={() => openEdit(area)}
-                          type="button"
-                        >
-                          Edytuj
-                        </button>
-                        <button
-                          className="table-action-btn danger"
-                          onClick={() => void handleDelete(area.id)}
-                          type="button"
-                        >
-                          Usun
-                        </button>
-                      </div>
+                      {area.responsibleUser
+                        ? `${area.responsibleUser.name} ${area.responsibleUser.surname}`
+                        : 'не назначен'}
                     </td>
+                    {canManageAreas ? (
+                      <td>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            className="table-action-btn"
+                            onClick={() => openEdit(area)}
+                            type="button"
+                          >
+                            Edytuj
+                          </button>
+                          <button
+                            className="table-action-btn danger"
+                            onClick={() => void handleDelete(area.id)}
+                            type="button"
+                          >
+                            Usun
+                          </button>
+                        </div>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
                 {areas.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="empty-row">
+                    <td colSpan={tableColSpan} className="empty-row">
                       Brak terenow dla wybranych filtrow — dodaj pierwszy lub zmien
                       filtry.
                     </td>
@@ -375,6 +431,24 @@ export default function TerenySection() {
                   {VOIVODESHIPS.map((v) => (
                     <option key={v} value={v}>
                       {v}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label htmlFor="add-responsible-user">
+                Opiekun (opcjonalnie)
+                <select
+                  id="add-responsible-user"
+                  value={addValues.responsibleUserId}
+                  onChange={(e) =>
+                    setAddValues((p) => ({ ...p, responsibleUserId: e.target.value }))
+                  }
+                  className="add-entry-select"
+                >
+                  <option value="">Nie przypisuj</option>
+                  {caregivers.map((caregiver) => (
+                    <option key={caregiver.id} value={caregiver.id}>
+                      {caregiver.name}
                     </option>
                   ))}
                 </select>
@@ -466,6 +540,27 @@ export default function TerenySection() {
                   {VOIVODESHIPS.map((v) => (
                     <option key={v} value={v}>
                       {v}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label htmlFor="edit-responsible-user">
+                Opiekun (opcjonalnie)
+                <select
+                  id="edit-responsible-user"
+                  value={editValues.responsibleUserId}
+                  onChange={(e) =>
+                    setEditValues((p) => ({
+                      ...p,
+                      responsibleUserId: e.target.value,
+                    }))
+                  }
+                  className="add-entry-select"
+                >
+                  <option value="">Nie przypisuj</option>
+                  {caregivers.map((caregiver) => (
+                    <option key={caregiver.id} value={caregiver.id}>
+                      {caregiver.name}
                     </option>
                   ))}
                 </select>

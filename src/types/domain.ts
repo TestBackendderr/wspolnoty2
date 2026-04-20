@@ -56,6 +56,13 @@ export interface Area {
   name: string;
   postalCode: string;
   voivodeship: string;
+  responsibleUser: {
+    id: number;
+    name: string;
+    surname: string;
+    email: string;
+    phoneNumber: string;
+  } | null;
 }
 
 export interface VoivodeshipLead {

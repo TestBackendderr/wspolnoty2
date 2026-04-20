@@ -23,6 +23,11 @@ interface DashboardApiStats {
     count: number;
   }>;
   recentCooperatives: DashboardApiCooperative[];
+  usersByActivityStatus: {
+    aktywni: number;
+    nieaktywni: number;
+    rejestrowani: number;
+  };
 }
 
 export interface DashboardStats {
@@ -35,6 +40,11 @@ export interface DashboardStats {
     count: number;
   }>;
   recentCooperatives: Cooperative[];
+  usersByActivityStatus: {
+    active: number;
+    inactive: number;
+    registering: number;
+  };
 }
 
 function mapStatusFromApi(status: DashboardApiCooperativeStatus): Cooperative['status'] {
@@ -67,5 +77,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     totalInstalledPowerKW: response.totalInstalledPowerKW,
     cooperativesByRegion: response.cooperativesByRegion,
     recentCooperatives: response.recentCooperatives.map(mapCooperativeFromApi),
+    usersByActivityStatus: {
+      active: response.usersByActivityStatus?.aktywni ?? 0,
+      inactive: response.usersByActivityStatus?.nieaktywni ?? 0,
+      registering: response.usersByActivityStatus?.rejestrowani ?? 0,
+    },
   };
 }

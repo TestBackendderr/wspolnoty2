@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 
-import type { Cooperative, User } from '@/types/domain';
+import type { User } from '@/types/domain';
 
 interface PlanySprzedazoweSectionProps {
-  cooperatives: Cooperative[];
+  salesPlans: Array<Record<string, unknown>>;
   caregivers: User[];
 }
 
@@ -18,26 +18,34 @@ function getQuarterOptions(baseDate = new Date()) {
 }
 
 export default function PlanySprzedazoweSection({
-  cooperatives,
+  salesPlans,
   caregivers,
 }: PlanySprzedazoweSectionProps) {
   const quarterOptions = useMemo(() => getQuarterOptions(), []);
   const [selectedQuarter, setSelectedQuarter] = useState(quarterOptions[0]);
 
-  const rows = cooperatives.map((coop) => {
-    const caregiver = caregivers.find((c) => c.id === coop.caregiverId);
-    const target = coop.plannedPower ? Math.round(coop.plannedPower * 1000) : 0;
-    const realized = coop.installedPower ? Math.round(coop.installedPower * 1000) : 0;
-    const progress = target > 0 ? Math.min(100, (realized / target) * 100) : 0;
-    return {
-      id: coop.id,
-      caregiverName: caregiver?.name ?? '—',
-      cooperativeName: coop.name,
-      target,
-      realized,
-      progress,
-    };
-  });
+  const rows = salesPlans
+    .map((plan, index) => {
+      const id = typeof plan.id === 'number' ? plan.id : index;
+      const caregiverId = typeof plan.caregiverId === 'number' ? plan.caregiverId : null;
+      const caregiver = caregivers.find((c) => c.id === caregiverId);
+      const cooperativeName =
+        typeof plan.cooperativeName === 'string' && plan.cooperativeName.trim()
+          ? plan.cooperativeName
+          : '—';
+      const target = typeof plan.target === 'number' ? plan.target : 0;
+      const realized = typeof plan.realized === 'number' ? plan.realized : 0;
+      const progress = target > 0 ? Math.min(100, (realized / target) * 100) : 0;
+      return {
+        id,
+        caregiverName: caregiver?.name ?? '—',
+        cooperativeName,
+        target,
+        realized,
+        progress,
+      };
+    })
+    .filter((row) => row.cooperativeName !== '—' || row.target > 0 || row.realized > 0);
 
   return (
     <section className="panel sales-plan-panel">
@@ -80,7 +88,7 @@ export default function PlanySprzedazoweSection({
             ) : (
               <tr>
                 <td colSpan={5} className="empty-row">
-                  Brak spoldzielni
+                  Brak planow sprzedazowych
                 </td>
               </tr>
             )}

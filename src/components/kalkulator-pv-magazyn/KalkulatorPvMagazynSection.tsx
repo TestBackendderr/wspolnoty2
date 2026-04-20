@@ -1,5 +1,12 @@
 import AddEntryModal from '@/components/common/AddEntryModal';
-import { useMemo, useState } from 'react';
+import type { AddEntryValues } from '@/components/common/AddEntryModal';
+import {
+  createCalculationProfile,
+  deleteCalculationProfile,
+  listAllCalculationProfiles,
+  type CalculationProfile,
+} from '@/services/calculationProfiles';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type Distributor = 'pge' | 'tauron' | 'enea' | 'energa' | 'eon';
 type Tariff = 'C1x' | 'C2x' | 'B21' | 'B22' | 'B23' | 'G11' | 'G12';
@@ -124,8 +131,30 @@ export default function KalkulatorPvMagazynSection() {
     subsidyType: 'fixed',
     subsidyValue: 7000,
   });
+  const [calculationProfiles, setCalculationProfiles] = useState<CalculationProfile[]>([]);
+  const [profilesLoading, setProfilesLoading] = useState(false);
+  const [profilesError, setProfilesError] = useState('');
+  const [profilesActionError, setProfilesActionError] = useState('');
+  const [profilesOpen, setProfilesOpen] = useState(false);
 
   const batteryPower = useMemo(() => round2(formData.pvPower * 1.5), [formData.pvPower]);
+
+  const loadCalculationProfiles = useCallback(async () => {
+    setProfilesLoading(true);
+    setProfilesError('');
+    try {
+      const items = await listAllCalculationProfiles();
+      setCalculationProfiles(items);
+    } catch {
+      setProfilesError('Nie udalo sie pobrac zapisanych profili kalkulacji.');
+    } finally {
+      setProfilesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCalculationProfiles();
+  }, [loadCalculationProfiles]);
 
   const updateFixedFee = (next: CalcFormData) => {
     const { distributor, tariff, contractedPower } = next;
@@ -283,20 +312,145 @@ export default function KalkulatorPvMagazynSection() {
     setTab('results');
   };
 
+  const handleAddCalculationProfile = (values: AddEntryValues) => {
+    const power = Number(values['calc-pv-power'] ?? 0);
+    const capacity = Number(values['calc-storage'] ?? 0);
+    if (!Number.isFinite(power) || !Number.isFinite(capacity) || power < 0 || capacity < 0) {
+      setProfilesActionError('Podaj poprawne wartosci mocy i pojemnosci.');
+      return;
+    }
+
+    void (async () => {
+      setProfilesActionError('');
+      try {
+        await createCalculationProfile({ power: Math.round(power), capacity: Math.round(capacity) });
+        await loadCalculationProfiles();
+      } catch {
+        setProfilesActionError('Nie udalo sie zapisac profilu kalkulacji.');
+      }
+    })();
+  };
+
+  const applyCalculationProfile = (profile: CalculationProfile) => {
+    setFormData((prev) => ({
+      ...prev,
+      pvPower: profile.power,
+      batteryCapacity: profile.capacity,
+    }));
+    setTab('config');
+  };
+
+  const removeCalculationProfile = (profileId: number) => {
+    void (async () => {
+      setProfilesActionError('');
+      try {
+        await deleteCalculationProfile(profileId);
+        await loadCalculationProfiles();
+      } catch {
+        setProfilesActionError('Nie udalo sie usunac profilu kalkulacji.');
+      }
+    })();
+  };
+
   return (
     <>
       <AddEntryModal
         buttonLabel="Dodaj profil kalkulacji"
         modalTitle="Dodaj profil kalkulacji PV + Magazyn"
         fields={[
-          { id: 'calc-profile-name', label: 'Nazwa profilu', placeholder: 'np. Profil testowy' },
           { id: 'calc-pv-power', label: 'Moc PV (kWp)', type: 'number', placeholder: '50' },
           { id: 'calc-storage', label: 'Pojemnosc magazynu (kWh)', type: 'number', placeholder: '100' },
         ]}
+        onSubmit={handleAddCalculationProfile}
       />
       <section className="panel">
         <div className="calc-container">
           <h3>Kalkulator Fotowoltaiki i Magazynu Energii</h3>
+          <div className="calc-section">
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '0.75rem',
+                marginBottom: '0.75rem',
+              }}
+            >
+              <h2 style={{ margin: 0 }}>Zapisane profile kalkulacji</h2>
+              <button
+                className="primary-outline-btn"
+                onClick={() => setProfilesOpen((prev) => !prev)}
+                type="button"
+              >
+                {profilesOpen ? 'Ukryj' : 'Pokaz'}
+              </button>
+            </div>
+            {profilesActionError ? <p className="email-warning">{profilesActionError}</p> : null}
+            {profilesOpen ? (
+              profilesLoading ? (
+                <p>Ladowanie profili...</p>
+              ) : profilesError ? (
+                <p className="email-warning">{profilesError}</p>
+              ) : calculationProfiles.length ? (
+                <div style={{ display: 'grid', gap: '0.75rem' }}>
+                  {calculationProfiles.map((profile) => (
+                    <article
+                      key={profile.id}
+                      style={{
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '0.75rem',
+                        padding: '0.75rem 0.9rem',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <div style={{ display: 'grid', gap: '0.15rem' }}>
+                        <strong>Profil #{profile.id}</strong>
+                        <span>Moc PV: {profile.power} kWp</span>
+                        <span>Pojemnosc: {profile.capacity} kWh</span>
+                        <small style={{ color: '#6b7280' }}>
+                          {new Date(profile.createdAt).toLocaleString('pl-PL')}
+                        </small>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <button
+                          className="primary-outline-btn"
+                          onClick={() => applyCalculationProfile(profile)}
+                          type="button"
+                        >
+                          Uzyj profilu
+                        </button>
+                        <button
+                          className="table-action-btn danger"
+                          onClick={() => removeCalculationProfile(profile.id)}
+                          type="button"
+                        >
+                          Usun profil
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p>Brak zapisanych profili. Dodaj pierwszy przez przycisk +.</p>
+              )
+            ) : (
+              <div
+                style={{
+                  color: '#6b7280',
+                  fontSize: '0.92rem',
+                  border: '1px dashed #d1d5db',
+                  borderRadius: '0.6rem',
+                  padding: '0.65rem 0.8rem',
+                }}
+              >
+                Sekcja profili jest ukryta.
+              </div>
+            )}
+          </div>
           <div className="calc-tab">
             <button
               className={`calc-tablinks ${tab === 'config' ? 'active' : ''}`}
