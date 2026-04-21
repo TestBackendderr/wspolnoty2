@@ -23,6 +23,24 @@ export interface LoginPayload {
   password: string;
 }
 
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface VerifyResetCodePayload {
+  email: string;
+  code: string;
+}
+
+export interface ResetPasswordPayload {
+  resetToken: string;
+  newPassword: string;
+}
+
+interface VerifyResetCodeResponse {
+  resetToken: string;
+}
+
 interface AuthUserResponse {
   id: number;
   name: string;
@@ -110,4 +128,36 @@ export async function getCurrentUser(): Promise<User | null> {
     }
     return null;
   }
+}
+
+export async function forgotPassword(payload: ForgotPasswordPayload): Promise<void> {
+  await apiRequest('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: payload.email.trim(),
+    }),
+    skipJson: true,
+  });
+}
+
+export async function verifyResetCode(payload: VerifyResetCodePayload): Promise<string> {
+  const response = await apiRequest<VerifyResetCodeResponse>('/auth/verify-reset-code', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: payload.email.trim(),
+      code: payload.code.trim(),
+    }),
+  });
+  return response.resetToken;
+}
+
+export async function resetPassword(payload: ResetPasswordPayload): Promise<void> {
+  await apiRequest('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({
+      resetToken: payload.resetToken,
+      newPassword: payload.newPassword,
+    }),
+    skipJson: true,
+  });
 }

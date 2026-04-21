@@ -5,39 +5,51 @@ type RecoverStep = 'email' | 'code' | 'password' | 'success';
 interface RecoverPasswordCardProps {
   initialEmail?: string;
   onBackToLogin: () => void;
-  onEmailSubmit: (email: string) => { ok: true; code: string } | { ok: false; error: string };
-  onPasswordReset: (email: string, newPassword: string) => { ok: true } | { ok: false; error: string };
+  onEmailSubmit: (email: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  onCodeSubmit: (
+    email: string,
+    code: string,
+  ) => Promise<{ ok: true; resetToken: string } | { ok: false; error: string }>;
+  onPasswordReset: (
+    resetToken: string,
+    newPassword: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
 }
 
 export default function RecoverPasswordCard({
   initialEmail = '',
   onBackToLogin,
   onEmailSubmit,
+  onCodeSubmit,
   onPasswordReset,
 }: RecoverPasswordCardProps) {
   const [step, setStep] = useState<RecoverStep>('email');
   const [email, setEmail] = useState(initialEmail);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
-  const [sentCode, setSentCode] = useState('');
   const [codeDigits, setCodeDigits] = useState(['', '', '', '', '', '']);
+  const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const codeRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   const joinedCode = useMemo(() => codeDigits.join(''), [codeDigits]);
 
-  const handleSendCode = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSendCode = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const response = onEmailSubmit(email.trim());
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    const response = await onEmailSubmit(email.trim());
+    setIsSubmitting(false);
     if (!response.ok) {
       setError(response.error);
       return;
     }
     setError('');
     setInfo(`Kod zostal wyslany na ${email.trim()}.`);
-    setSentCode(response.code);
     setCodeDigits(['', '', '', '', '', '']);
+    setResetToken('');
     setStep('code');
   };
 
@@ -59,22 +71,29 @@ export default function RecoverPasswordCard({
     }
   };
 
-  const handleCodeSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleCodeSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting) return;
     if (joinedCode.length !== 6) {
       setError('Wpisz pelny 6-cyfrowy kod.');
       return;
     }
-    if (joinedCode !== sentCode) {
-      setError('Nieprawidlowy kod. Sprobuj ponownie.');
+    setIsSubmitting(true);
+    const response = await onCodeSubmit(email.trim(), joinedCode);
+    setIsSubmitting(false);
+    if (!response.ok) {
+      setError(response.error);
       return;
     }
+    setResetToken(response.resetToken);
     setError('');
+    setInfo('');
     setStep('password');
   };
 
-  const handlePasswordSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handlePasswordSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting) return;
     if (!newPassword || !confirmPassword) {
       setError('Uzupelnij oba pola hasla.');
       return;
@@ -84,7 +103,15 @@ export default function RecoverPasswordCard({
       return;
     }
 
-    const response = onPasswordReset(email.trim(), newPassword);
+    if (!resetToken) {
+      setError('Sesja resetowania wygasla. Popros o nowy kod.');
+      setStep('email');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const response = await onPasswordReset(resetToken, newPassword);
+    setIsSubmitting(false);
     if (!response.ok) {
       setError(response.error);
       return;
@@ -112,7 +139,7 @@ export default function RecoverPasswordCard({
             required
           />
           <button className="primary-btn" type="submit">
-            Wyslij kod
+            {isSubmitting ? 'Wysylanie...' : 'Wyslij kod'}
           </button>
         </form>
       ) : null}
@@ -136,9 +163,8 @@ export default function RecoverPasswordCard({
               />
             ))}
           </div>
-          <small className="recover-demo-hint">Demo: kod testowy {sentCode}</small>
           <button className="primary-btn" type="submit">
-            Potwierdz kod
+            {isSubmitting ? 'Sprawdzanie...' : 'Potwierdz kod'}
           </button>
         </form>
       ) : null}
@@ -164,7 +190,7 @@ export default function RecoverPasswordCard({
           />
 
           <button className="primary-btn" type="submit">
-            Zmien haslo
+            {isSubmitting ? 'Zapisywanie...' : 'Zmien haslo'}
           </button>
         </form>
       ) : null}
