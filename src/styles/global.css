@@ -1227,6 +1227,135 @@ td {
   z-index: 2001;
 }
 
+.coop-create-modal {
+  width: min(900px, calc(100% - 24px));
+  max-height: 92vh;
+  overflow-y: auto;
+}
+
+.coop-create-form {
+  gap: 16px;
+}
+
+.coop-create-name-input {
+  font-size: 16px;
+}
+
+.coop-create-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.coop-create-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.coop-create-areas {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.coop-create-area-item {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.coop-create-area-item input {
+  margin: 0;
+}
+
+.coop-create-empty-areas {
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.coop-create-board {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.coop-create-board > p {
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+
+.coop-create-members-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.coop-create-members-head p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.coop-create-members-head .primary-btn {
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
+.coop-create-members-empty {
+  margin: 0;
+  color: #9ca3af;
+  text-align: center;
+  padding: 12px 0 8px;
+  font-size: 13px;
+}
+
+.coop-create-members-list {
+  display: grid;
+  gap: 8px;
+}
+
+.coop-create-member-row {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.coop-create-member-row strong {
+  display: block;
+  font-size: 14px;
+}
+
+.coop-create-member-row span {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.coop-create-member-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.coop-create-actions {
+  margin-top: 6px;
+}
+
+.coop-create-actions .primary-outline-btn,
+.coop-create-actions .primary-btn {
+  flex: 1;
+}
+
 .prompt-modal-card {
   width: min(460px, calc(100% - 24px));
 }
@@ -1509,5 +1638,19 @@ td {
   .members-donut-layout {
     grid-template-columns: 1fr;
     justify-items: center;
+  }
+
+  .coop-create-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .coop-create-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .coop-create-areas {
+    grid-template-columns: 1fr;
   }
 }
