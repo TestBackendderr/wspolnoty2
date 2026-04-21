@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import CooperativesTable from '@/components/common/CooperativesTable';
 import type { AddEntryValues } from '@/components/common/AddEntryModal';
@@ -43,7 +44,7 @@ function formatDateTime(iso: string): { date: string; time: string } {
 /** When `cooperatives` prop is passed, the section works in read-only, prop-driven mode (e.g. caregiver view). */
 interface SpoldzielnieSectionProps {
   cooperatives?: Cooperative[];
-  onAddCooperative?: (values: AddEntryValues) => void;
+  onAddCooperative?: (values: AddEntryValues) => Promise<void> | void;
   onUpdateCooperative?: (
     coopId: number,
     payload: Pick<Cooperative, 'status' | 'plannedPower' | 'installedPower'>,
@@ -57,6 +58,7 @@ export default function SpoldzielnieSection({
   onUpdateCooperative: onUpdateCooperativeProp,
   onDeleteCooperative: onDeleteCooperativeProp,
 }: SpoldzielnieSectionProps) {
+  const navigate = useNavigate();
   const selfFetch = cooperativesProp === undefined;
 
   // ── self-fetch state ──────────────────────────────────────────────────────
@@ -152,17 +154,17 @@ export default function SpoldzielnieSection({
   }, [selfFetch, cooperativesProp]);
 
   // ── add cooperative ───────────────────────────────────────────────────────
-  const handleAddCooperative = async (values: AddEntryValues): Promise<void> => {
+  const handleAddCooperative = async (values: AddEntryValues): Promise<number | null> => {
     if (!selfFetch) {
       await onAddCooperativeProp?.(values);
-      return;
+      return null;
     }
     const name = (values['coop-name'] ?? '').trim();
-    if (!name) return;
+    if (!name) return null;
 
     setActionError('');
     try {
-      await createCooperative({
+      const created = await createCooperative({
         name,
         address: (values['coop-address'] ?? '').trim(),
         region: (values['coop-voivodeship'] ?? '').trim() || 'nieokreslone',
@@ -170,6 +172,7 @@ export default function SpoldzielnieSection({
       });
       setPage(1);
       await fetchCooperatives();
+      return created.id;
     } catch {
       setActionError('Nie udało się dodać spółdzielni.');
       throw new Error('create_failed');
@@ -244,7 +247,24 @@ export default function SpoldzielnieSection({
     setCreateSaving(true);
     void (async () => {
       try {
-        await handleAddCooperative(values);
+        const createdId = await handleAddCooperative(values);
+        if (createdId) {
+          const existingRaw = localStorage.getItem('coop_creation_details_v1');
+          const existing = existingRaw ? JSON.parse(existingRaw) as Record<string, unknown> : {};
+          existing[String(createdId)] = {
+            cooperativeId: createdId,
+            board: {
+              name: createValues.boardName,
+              email: createValues.boardEmail,
+              phone: createValues.boardPhone,
+            },
+            members: createMembers,
+            areaIds: selectedAreaIds,
+            createdAt: createValues.createdAt,
+          };
+          localStorage.setItem('coop_creation_details_v1', JSON.stringify(existing));
+          navigate(`/mapa?linkCoop=${createdId}`);
+        }
         closeCreate();
       } finally {
         setCreateSaving(false);

@@ -997,6 +997,24 @@ td {
   background: #f9fafb;
 }
 
+.map-linked-coop-card {
+  margin-top: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  font-size: 13px;
+}
+
+.map-linked-coop-card h5 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.map-linked-coop-card p {
+  margin: 4px 0;
+}
+
 .map-details-top {
   display: flex;
   justify-content: space-between;

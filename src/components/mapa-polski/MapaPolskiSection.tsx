@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AppDatabase } from '@/types/domain';
@@ -27,6 +28,7 @@ interface CustomMapPoint {
   voivodeshipId: string;
   valueGwh: number;
   center: [number, number];
+  cooperativeId?: number;
 }
 
 interface PendingPointPayload {
@@ -34,6 +36,14 @@ interface PendingPointPayload {
   center: [number, number];
   voivodeshipId: string;
   voivodeshipLabel: string;
+}
+
+interface FrontendCoopDetails {
+  cooperativeId: number;
+  board?: { name?: string; email?: string; phone?: string };
+  members?: Array<{ id: number; fullName: string; status: string }>;
+  areaIds?: number[];
+  createdAt?: string;
 }
 
 const VOIVODESHIPS: VoivodeshipPoint[] = [
@@ -86,6 +96,7 @@ export default function MapaPolskiSection({
   onSetVoivodeshipLead,
   onSetVoivodeshipAssignments,
 }: MapaPolskiSectionProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
@@ -98,6 +109,37 @@ export default function MapaPolskiSection({
   const [isAddingPoint, setIsAddingPoint] = useState(false);
   const [pendingPoint, setPendingPoint] = useState<PendingPointPayload | null>(null);
   const [pendingPointName, setPendingPointName] = useState('');
+  const linkCoopId = Number(searchParams.get('linkCoop') ?? 0) || null;
+  const linkCoop = linkCoopId ? db.cooperatives.find((coop) => coop.id === linkCoopId) ?? null : null;
+
+  const frontendDetailsByCoopId = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('coop_creation_details_v1');
+      if (!raw) return {} as Record<string, FrontendCoopDetails>;
+      return JSON.parse(raw) as Record<string, FrontendCoopDetails>;
+    } catch {
+      return {} as Record<string, FrontendCoopDetails>;
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('custom_map_points_v1');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as CustomMapPoint[];
+      setCustomPoints(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setCustomPoints([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('custom_map_points_v1', JSON.stringify(customPoints));
+  }, [customPoints]);
+
+  useEffect(() => {
+    if (linkCoopId) setIsAddingPoint(true);
+  }, [linkCoopId]);
   const allPoints = useMemo<VoivodeshipPoint[]>(
     () => [
       ...VOIVODESHIPS,
@@ -203,6 +245,26 @@ export default function MapaPolskiSection({
       const nearestVoivodeshipLabel =
         VOIVODESHIPS.find((voivodeship) => voivodeship.id === nearestVoivodeshipId)?.label ?? 'Polska';
 
+      if (linkCoopId && linkCoop) {
+        setCustomPoints((prev) => [
+          ...prev,
+          {
+            id: nextId,
+            name: linkCoop.name,
+            voivodeshipId: nearestVoivodeshipId,
+            valueGwh: 0,
+            center: pointCenter,
+            cooperativeId: linkCoopId,
+          },
+        ]);
+        setSelectedVoivodeship(String(nextId));
+        setIsAddingPoint(false);
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete('linkCoop');
+        setSearchParams(nextParams, { replace: true });
+        return;
+      }
+
       setPendingPoint({
         id: nextId,
         center: pointCenter,
@@ -217,9 +279,22 @@ export default function MapaPolskiSection({
     return () => {
       map.off('click', handleMapClick);
     };
-  }, [isAddingPoint]);
+  }, [isAddingPoint, linkCoop, linkCoopId, searchParams, setSearchParams]);
 
   const selectedMeta = allPoints.find((v) => v.id === selectedVoivodeship) ?? null;
+  const selectedCustomPoint = selectedMeta?.isCustom
+    ? customPoints.find((point) => String(point.id) === selectedMeta.id) ?? null
+    : null;
+  const selectedLinkedCoop = selectedCustomPoint?.cooperativeId
+    ? db.cooperatives.find((coop) => coop.id === selectedCustomPoint.cooperativeId) ?? null
+    : null;
+  const selectedLinkedDetails = selectedLinkedCoop
+    ? frontendDetailsByCoopId[String(selectedLinkedCoop.id)] ?? null
+    : null;
+  const selectedLinkedAreas = selectedLinkedDetails?.areaIds?.length
+    ? db.areas.filter((area) => selectedLinkedDetails.areaIds?.includes(area.id))
+    : [];
+  const selectedLinkedMembers = selectedLinkedDetails?.members ?? [];
   const isCustomSelectedPoint = Boolean(selectedMeta?.isCustom);
   const selectedCaregiversByVoivodeship = selectedVoivodeship
     ? grouped.caregiversByVoiv.get(selectedVoivodeship) ?? []
@@ -299,7 +374,11 @@ export default function MapaPolskiSection({
         <span>Dodaj punkt na mapie</span>
       </button>
       {isAddingPoint ? (
-        <p className="map-point-help">Kliknij w wybrane miejsce na mapie, aby dodac punkt.</p>
+        <p className="map-point-help">
+          {linkCoop
+            ? `Wybierz punkt na mapie dla spoldzielni: ${linkCoop.name}`
+            : 'Kliknij w wybrane miejsce na mapie, aby dodac punkt.'}
+        </p>
       ) : null}
       {customPointError ? <p className="map-point-error">{customPointError}</p> : null}
       <PromptModal
@@ -482,6 +561,37 @@ export default function MapaPolskiSection({
                 )}
               </div>
             </div>
+            {selectedLinkedCoop ? (
+              <div className="map-linked-coop-card">
+                <h5>Szczegoly spoldzielni z tworzenia</h5>
+                <p><strong>Nazwa:</strong> {selectedLinkedCoop.name}</p>
+                <p><strong>Adres:</strong> {selectedLinkedCoop.address || '-'}</p>
+                <p><strong>Wojewodztwo:</strong> {selectedLinkedCoop.voivodeship || '-'}</p>
+                <p><strong>Status:</strong> {selectedLinkedCoop.status}</p>
+                <p><strong>Moc planowana:</strong> {selectedLinkedCoop.plannedPower} kWp</p>
+                <p><strong>Moc zainstalowana:</strong> {selectedLinkedCoop.installedPower} kWp</p>
+                <p><strong>Zarzad:</strong> {selectedLinkedDetails?.board?.name || '-'}</p>
+                <p><strong>Email zarzadu:</strong> {selectedLinkedDetails?.board?.email || '-'}</p>
+                <p><strong>Telefon zarzadu:</strong> {selectedLinkedDetails?.board?.phone || '-'}</p>
+                <p><strong>Data utworzenia:</strong> {selectedLinkedDetails?.createdAt || '-'}</p>
+                <p><strong>Czlonkowie:</strong> {selectedLinkedMembers.length}</p>
+                {selectedLinkedMembers.length ? (
+                  <div>
+                    {selectedLinkedMembers.map((member) => (
+                      <div key={member.id}>• {member.fullName} ({member.status})</div>
+                    ))}
+                  </div>
+                ) : null}
+                <p><strong>Tereny:</strong> {selectedLinkedAreas.length}</p>
+                {selectedLinkedAreas.length ? (
+                  <div>
+                    {selectedLinkedAreas.map((area) => (
+                      <div key={area.id}>• {area.name}</div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </section>
