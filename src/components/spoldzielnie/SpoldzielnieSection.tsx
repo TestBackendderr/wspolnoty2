@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import CooperativesTable from '@/components/common/CooperativesTable';
 import type { AddEntryValues } from '@/components/common/AddEntryModal';
@@ -86,6 +86,7 @@ export default function SpoldzielnieSection({
   onDeleteCooperative: onDeleteCooperativeProp,
 }: SpoldzielnieSectionProps) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const selfFetch = cooperativesProp === undefined;
 
   // ── self-fetch state ──────────────────────────────────────────────────────
@@ -179,6 +180,14 @@ export default function SpoldzielnieSection({
   useEffect(() => {
     if (!selfFetch && cooperativesProp) setCooperatives(cooperativesProp);
   }, [selfFetch, cooperativesProp]);
+
+  useEffect(() => {
+    if (searchParams.get('create') !== '1') return;
+    setCreateOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('create');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   // ── add cooperative ───────────────────────────────────────────────────────
   const handleAddCooperative = async (values: AddEntryValues): Promise<number | null> => {

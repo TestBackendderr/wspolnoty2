@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AppDatabase } from '@/types/domain';
 import PromptModal from '@/components/common/PromptModal';
+import { mapStatusToApi, updateCooperative } from '@/services/cooperatives';
 
 interface MapaPolskiSectionProps {
   db: AppDatabase;
@@ -96,6 +97,7 @@ export default function MapaPolskiSection({
   onSetVoivodeshipLead,
   onSetVoivodeshipAssignments,
 }: MapaPolskiSectionProps) {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -109,6 +111,16 @@ export default function MapaPolskiSection({
   const [isAddingPoint, setIsAddingPoint] = useState(false);
   const [pendingPoint, setPendingPoint] = useState<PendingPointPayload | null>(null);
   const [pendingPointName, setPendingPointName] = useState('');
+  const [linkedCaregiverDraft, setLinkedCaregiverDraft] = useState('');
+  const [linkedStatusDraft, setLinkedStatusDraft] = useState<AppDatabase['cooperatives'][number]['status'] | ''>('');
+  const [linkedAreaDraft, setLinkedAreaDraft] = useState('');
+  const [linkedSaving, setLinkedSaving] = useState(false);
+  const [linkedError, setLinkedError] = useState('');
+  const [linkedCoopOverrides, setLinkedCoopOverrides] = useState<Record<number, {
+    status?: AppDatabase['cooperatives'][number]['status'];
+    supervisorId?: number | null;
+    areas?: AppDatabase['cooperatives'][number]['areas'];
+  }>>({});
   const linkCoopId = Number(searchParams.get('linkCoop') ?? 0) || null;
   const linkCoop = linkCoopId ? db.cooperatives.find((coop) => coop.id === linkCoopId) ?? null : null;
 
@@ -141,15 +153,13 @@ export default function MapaPolskiSection({
     if (linkCoopId) setIsAddingPoint(true);
   }, [linkCoopId]);
   const allPoints = useMemo<VoivodeshipPoint[]>(
-    () => [
-      ...VOIVODESHIPS,
-      ...customPoints.map(({ id, name, center }) => ({
+    () =>
+      customPoints.map(({ id, name, center }) => ({
         id: String(id),
         label: name,
         center,
         isCustom: true,
       })),
-    ],
     [customPoints],
   );
 
@@ -285,17 +295,34 @@ export default function MapaPolskiSection({
   const selectedCustomPoint = selectedMeta?.isCustom
     ? customPoints.find((point) => String(point.id) === selectedMeta.id) ?? null
     : null;
-  const selectedLinkedCoop = selectedCustomPoint?.cooperativeId
-    ? db.cooperatives.find((coop) => coop.id === selectedCustomPoint.cooperativeId) ?? null
+  const selectedLinkedCoopId = selectedCustomPoint?.cooperativeId ?? null;
+  const selectedLinkedCoopBase = selectedLinkedCoopId
+    ? db.cooperatives.find((coop) => coop.id === selectedLinkedCoopId) ?? null
     : null;
-  const selectedLinkedDetails = selectedLinkedCoop
-    ? frontendDetailsByCoopId[String(selectedLinkedCoop.id)] ?? null
+  const selectedLinkedCoop = selectedLinkedCoopBase
+    ? {
+        ...selectedLinkedCoopBase,
+        ...(linkedCoopOverrides[selectedLinkedCoopBase.id] ?? {}),
+      }
     : null;
-  const selectedLinkedAreas = selectedLinkedDetails?.areaIds?.length
-    ? db.areas.filter((area) => selectedLinkedDetails.areaIds?.includes(area.id))
-    : [];
-  const selectedLinkedMembers = selectedLinkedDetails?.members ?? [];
+  const selectedLinkedDetails = selectedLinkedCoopId
+    ? frontendDetailsByCoopId[String(selectedLinkedCoopId)] ?? null
+    : null;
+  const selectedLinkedAreas = selectedLinkedCoop?.areas?.length
+    ? selectedLinkedCoop.areas
+    : selectedLinkedDetails?.areaIds?.length
+      ? db.areas.filter((area) => selectedLinkedDetails.areaIds?.includes(area.id))
+      : [];
+  const selectedLinkedMembers = selectedLinkedCoop?.members?.length
+    ? selectedLinkedCoop.members
+    : selectedLinkedDetails?.members ?? [];
+  const linkedAssignedAreaIds = new Set(selectedLinkedAreas.map((area) => area.id));
+  const linkedAvailableAreas = db.areas.filter((area) => !linkedAssignedAreaIds.has(area.id));
+  const selectedLinkedCaregiver = selectedLinkedCoop?.supervisorId
+    ? db.caregivers.find((caregiver) => caregiver.id === selectedLinkedCoop.supervisorId) ?? null
+    : null;
   const isCustomSelectedPoint = Boolean(selectedMeta?.isCustom);
+  const shouldShowLinkedCard = isCustomSelectedPoint;
   const selectedCaregiversByVoivodeship = selectedVoivodeship
     ? grouped.caregiversByVoiv.get(selectedVoivodeship) ?? []
     : [];
@@ -335,6 +362,20 @@ export default function MapaPolskiSection({
     setAreaDraft('');
   }, [selectedAssignment, selectedVoivodeship, selectedLeadId]);
 
+  useEffect(() => {
+    if (!selectedLinkedCoop) {
+      setLinkedCaregiverDraft('');
+      setLinkedStatusDraft('');
+      setLinkedAreaDraft('');
+      setLinkedError('');
+      return;
+    }
+    setLinkedCaregiverDraft(selectedLinkedCoop.supervisorId ? String(selectedLinkedCoop.supervisorId) : '');
+    setLinkedStatusDraft(selectedLinkedCoop.status);
+    setLinkedAreaDraft('');
+    setLinkedError('');
+  }, [selectedLinkedCoop?.id, selectedLinkedCoop?.supervisorId, selectedLinkedCoop?.status]);
+
   const updateAssignments = (nextCoopIds: number[], nextAreaIds: number[]) => {
     if (!selectedVoivodeship) return;
     onSetVoivodeshipAssignments(selectedVoivodeship, nextCoopIds, nextAreaIds);
@@ -367,11 +408,101 @@ export default function MapaPolskiSection({
     closePendingPointModal();
   };
 
+  const saveLinkedCoopMeta = () => {
+    if (!selectedLinkedCoop) return;
+    const nextSupervisorId = Number(linkedCaregiverDraft);
+    const patch: { supervisorId?: number; status?: ReturnType<typeof mapStatusToApi> } = {};
+    if (Number.isInteger(nextSupervisorId) && nextSupervisorId > 0 && nextSupervisorId !== selectedLinkedCoop.supervisorId) {
+      patch.supervisorId = nextSupervisorId;
+    }
+    if (linkedStatusDraft && linkedStatusDraft !== selectedLinkedCoop.status) {
+      patch.status = mapStatusToApi(linkedStatusDraft);
+    }
+    if (Object.keys(patch).length === 0) return;
+
+    setLinkedSaving(true);
+    setLinkedError('');
+    void (async () => {
+      try {
+        const updated = await updateCooperative(selectedLinkedCoop.id, patch);
+        setLinkedCoopOverrides((prev) => ({
+          ...prev,
+          [selectedLinkedCoop.id]: {
+            status: updated.status,
+            supervisorId: updated.supervisorId ?? null,
+            areas: updated.areas,
+          },
+        }));
+      } catch {
+        setLinkedError('Nie udało się zapisać zmian spółdzielni.');
+      } finally {
+        setLinkedSaving(false);
+      }
+    })();
+  };
+
+  const addLinkedArea = () => {
+    if (!selectedLinkedCoop || !linkedAreaDraft) return;
+    const nextAreaId = Number(linkedAreaDraft);
+    if (!Number.isInteger(nextAreaId) || nextAreaId <= 0) return;
+
+    const currentAreaIds = selectedLinkedAreas.map((area) => area.id);
+    if (currentAreaIds.includes(nextAreaId)) return;
+
+    setLinkedSaving(true);
+    setLinkedError('');
+    void (async () => {
+      try {
+        const updated = await updateCooperative(selectedLinkedCoop.id, {
+          areaIds: [...currentAreaIds, nextAreaId],
+        });
+        setLinkedCoopOverrides((prev) => ({
+          ...prev,
+          [selectedLinkedCoop.id]: {
+            ...prev[selectedLinkedCoop.id],
+            areas: updated.areas,
+          },
+        }));
+        setLinkedAreaDraft('');
+      } catch {
+        setLinkedError('Nie udało się dodać terenu.');
+      } finally {
+        setLinkedSaving(false);
+      }
+    })();
+  };
+
+  const removeLinkedArea = (areaId: number) => {
+    if (!selectedLinkedCoop) return;
+    const nextAreaIds = selectedLinkedAreas.map((area) => area.id).filter((id) => id !== areaId);
+
+    setLinkedSaving(true);
+    setLinkedError('');
+    void (async () => {
+      try {
+        const updated = await updateCooperative(selectedLinkedCoop.id, {
+          areaIds: nextAreaIds,
+        });
+        setLinkedCoopOverrides((prev) => ({
+          ...prev,
+          [selectedLinkedCoop.id]: {
+            ...prev[selectedLinkedCoop.id],
+            areas: updated.areas,
+          },
+        }));
+      } catch {
+        setLinkedError('Nie udało się usunąć terenu.');
+      } finally {
+        setLinkedSaving(false);
+      }
+    })();
+  };
+
   return (
     <>
-      <button className="add-entity-btn" onClick={() => setIsAddingPoint(true)} type="button">
+      <button className="add-entity-btn" onClick={() => navigate('/spoldzielnie?create=1')} type="button">
         <span>+</span>
-        <span>Dodaj punkt na mapie</span>
+        <span>Dodaj Spółdzielnie</span>
       </button>
       {isAddingPoint ? (
         <p className="map-point-help">
@@ -430,168 +561,254 @@ export default function MapaPolskiSection({
                 ×
               </button>
             </div>
-            <div className="map-details-cols">
-              <div>
-                <div className="map-col-title">OPIEKUNOWIE</div>
-                <div>
-                  <strong>Główny:</strong> {selectedLead?.name ?? 'Brak przypisania'}
-                </div>
-                <div className="map-head-right" style={{ marginTop: 8, alignItems: 'flex-start' }}>
-                  <select
-                    className="add-entry-select"
-                    value={leadDraft}
-                    onChange={(event) => setLeadDraft(event.target.value)}
-                  >
-                    <option value="">Brak głównego opiekuna</option>
-                    {db.caregivers.map((caregiver) => (
-                      <option key={caregiver.id} value={caregiver.id}>
-                        {caregiver.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="primary-btn"
-                    onClick={() =>
-                      selectedVoivodeship &&
-                      onSetVoivodeshipLead(selectedVoivodeship, leadDraft ? Number(leadDraft) : null)
-                    }
-                    type="button"
-                  >
-                    Ustaw głównego
-                  </button>
-                </div>
-                {selectedCaregivers.length ? (
-                  selectedCaregivers.map((caregiver) => <div key={caregiver.id}>• {caregiver.name}</div>)
-                ) : (
-                  <span className="map-none-red">Brak opiekunów</span>
-                )}
-              </div>
-              <div>
-                <div className="map-col-title">SPÓŁDZIELNIE</div>
-                <div className="map-head-right" style={{ marginTop: 8, alignItems: 'flex-start' }}>
-                  <select value={cooperativeDraft} onChange={(event) => setCooperativeDraft(event.target.value)}>
-                    <option value="">Brak</option>
-                    {cooperativeOptions.map((coop) => (
-                      <option key={coop.id} value={coop.id}>
-                        {coop.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="primary-btn"
-                    onClick={() =>
-                      cooperativeDraft
-                        ? updateAssignments(
-                            Array.from(new Set([...(selectedAssignment?.cooperativeIds ?? []), Number(cooperativeDraft)])),
-                            selectedAssignment?.areaIds ?? [],
-                          )
-                        : null
-                    }
-                    type="button"
-                  >
-                    Dodaj
-                  </button>
-                </div>
-                {assignedCooperatives.length ? (
-                  assignedCooperatives.map((coop) => (
-                    <div key={coop.id}>
-                      • {coop.name}{' '}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateAssignments(
-                            (selectedAssignment?.cooperativeIds ?? []).filter((id) => id !== coop.id),
-                            selectedAssignment?.areaIds ?? [],
-                          )
-                        }
-                      >
-                        Usuń
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <span className="map-none">Brak</span>
-                )}
-              </div>
-              <div>
-                <div className="map-col-title">TERENY</div>
-                <div className="map-head-right" style={{ marginTop: 8, alignItems: 'flex-start' }}>
-                  <select value={areaDraft} onChange={(event) => setAreaDraft(event.target.value)}>
-                    <option value="">Brak</option>
-                    {areaOptions.map((area) => (
-                      <option key={area.id} value={area.id}>
-                        {area.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="primary-btn"
-                    onClick={() =>
-                      areaDraft
-                        ? updateAssignments(
-                            selectedAssignment?.cooperativeIds ?? [],
-                            Array.from(new Set([...(selectedAssignment?.areaIds ?? []), Number(areaDraft)])),
-                          )
-                        : null
-                    }
-                    type="button"
-                  >
-                    Dodaj
-                  </button>
-                </div>
-                {assignedAreas.length ? (
-                  assignedAreas.map((area) => (
-                    <div key={area.id}>
-                      • {area.name}{' '}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateAssignments(
-                            selectedAssignment?.cooperativeIds ?? [],
-                            (selectedAssignment?.areaIds ?? []).filter((id) => id !== area.id),
-                          )
-                        }
-                      >
-                        Usuń
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <span className="map-none">Brak</span>
-                )}
-              </div>
-            </div>
-            {selectedLinkedCoop ? (
+            {shouldShowLinkedCard ? (
               <div className="map-linked-coop-card">
-                <h5>Szczegóły spółdzielni z tworzenia</h5>
-                <p><strong>Nazwa:</strong> {selectedLinkedCoop.name}</p>
-                <p><strong>Adres:</strong> {selectedLinkedCoop.address || '-'}</p>
-                <p><strong>Województwo:</strong> {selectedLinkedCoop.voivodeship || '-'}</p>
-                <p><strong>Status:</strong> {selectedLinkedCoop.status}</p>
-                <p><strong>Moc planowana:</strong> {selectedLinkedCoop.plannedPower} kWp</p>
-                <p><strong>Moc zainstalowana:</strong> {selectedLinkedCoop.installedPower} kWp</p>
-                <p><strong>Zarząd:</strong> {selectedLinkedDetails?.board?.name || '-'}</p>
-                <p><strong>E-mail zarządu:</strong> {selectedLinkedDetails?.board?.email || '-'}</p>
-                <p><strong>Telefon zarządu:</strong> {selectedLinkedDetails?.board?.phone || '-'}</p>
-                <p><strong>Data utworzenia:</strong> {selectedLinkedDetails?.createdAt || '-'}</p>
-                <p><strong>Członkowie:</strong> {selectedLinkedMembers.length}</p>
-                {selectedLinkedMembers.length ? (
-                  <div>
-                    {selectedLinkedMembers.map((member) => (
-                      <div key={member.id}>• {member.fullName} ({member.status})</div>
-                    ))}
-                  </div>
-                ) : null}
-                <p><strong>Tereny:</strong> {selectedLinkedAreas.length}</p>
-                {selectedLinkedAreas.length ? (
-                  <div>
-                    {selectedLinkedAreas.map((area) => (
-                      <div key={area.id}>• {area.name}</div>
-                    ))}
-                  </div>
+                <div className="map-linked-header">
+                  <h5>Szczegóły spółdzielni z tworzenia</h5>
+                  <span className="map-linked-status">{selectedLinkedCoop?.status || '-'}</span>
+                </div>
+
+                <div className="map-linked-meta">
+                  <p><strong>Nazwa:</strong> {selectedLinkedCoop?.name || selectedMeta.label}</p>
+                  <p><strong>Adres:</strong> {selectedLinkedCoop?.address || '-'}</p>
+                  <p><strong>Województwo:</strong> {selectedLinkedCoop?.voivodeship || '-'}</p>
+                  <p><strong>Aktualny opiekun:</strong> {selectedLinkedCaregiver ? selectedLinkedCaregiver.name : 'Brak przypisania'}</p>
+                  <p><strong>Moc planowana:</strong> {selectedLinkedCoop?.plannedPower ?? '-'} {selectedLinkedCoop ? 'kWp' : ''}</p>
+                  <p><strong>Moc zainstalowana:</strong> {selectedLinkedCoop?.installedPower ?? '-'} {selectedLinkedCoop ? 'kWp' : ''}</p>
+                  <p><strong>Zarząd:</strong> {selectedLinkedDetails?.board?.name || selectedLinkedCoop?.boardName || '-'}</p>
+                  <p><strong>E-mail zarządu:</strong> {selectedLinkedDetails?.board?.email || selectedLinkedCoop?.boardEmail || '-'}</p>
+                  <p><strong>Telefon zarządu:</strong> {selectedLinkedDetails?.board?.phone || selectedLinkedCoop?.boardPhone || '-'}</p>
+                  <p><strong>Data utworzenia:</strong> {selectedLinkedDetails?.createdAt || '-'}</p>
+                </div>
+
+                <div className="map-linked-controls">
+                  <label htmlFor="linked-coop-caregiver">
+                    Opiekun
+                    <select
+                      id="linked-coop-caregiver"
+                      className="add-entry-select"
+                      value={linkedCaregiverDraft}
+                      onChange={(event) => setLinkedCaregiverDraft(event.target.value)}
+                      disabled={!selectedLinkedCoop}
+                    >
+                      <option value="">Brak głównego opiekuna</option>
+                      {db.caregivers.map((caregiver) => (
+                        <option key={caregiver.id} value={caregiver.id}>
+                          {caregiver.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label htmlFor="linked-coop-status">
+                    Status
+                    <select
+                      id="linked-coop-status"
+                      className="add-entry-select"
+                      value={linkedStatusDraft}
+                      onChange={(event) => setLinkedStatusDraft(event.target.value as AppDatabase['cooperatives'][number]['status'])}
+                      disabled={!selectedLinkedCoop}
+                    >
+                      <option value="planowana">Planowana</option>
+                      <option value="w trakcie tworzenia">W trakcie tworzenia</option>
+                      <option value="aktywna">Aktywna</option>
+                      <option value="zawieszona">Zawieszona</option>
+                    </select>
+                  </label>
+                  <button className="primary-btn" type="button" disabled={linkedSaving || !selectedLinkedCoop} onClick={saveLinkedCoopMeta}>
+                    {linkedSaving ? 'Zapisywanie...' : 'Zapisz zmiany'}
+                  </button>
+                </div>
+
+                <div className="map-linked-sections">
+                  <section className="map-linked-section">
+                    <div className="map-linked-section-head">
+                      <strong>Tereny ({selectedLinkedAreas.length})</strong>
+                      <div className="map-linked-area-add">
+                        <select
+                          className="add-entry-select"
+                          value={linkedAreaDraft}
+                          onChange={(event) => setLinkedAreaDraft(event.target.value)}
+                          disabled={!selectedLinkedCoop || linkedAvailableAreas.length === 0}
+                        >
+                          <option value="">Dodaj teren</option>
+                          {linkedAvailableAreas.map((area) => (
+                            <option key={area.id} value={area.id}>{area.name}</option>
+                          ))}
+                        </select>
+                        <button className="primary-btn" type="button" disabled={!selectedLinkedCoop || !linkedAreaDraft || linkedSaving} onClick={addLinkedArea}>
+                          Dodaj
+                        </button>
+                      </div>
+                    </div>
+                    {selectedLinkedAreas.length ? (
+                      <ul className="map-linked-list">
+                        {selectedLinkedAreas.map((area) => (
+                          <li key={area.id}>
+                            <span>{area.name}</span>
+                            {selectedLinkedCoop ? (
+                              <button type="button" className="table-action-btn danger" onClick={() => removeLinkedArea(area.id)}>
+                                Usuń
+                              </button>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : <p className="map-none">Brak terenów.</p>}
+                  </section>
+
+                  <section className="map-linked-section">
+                    <strong>Członkowie ({selectedLinkedMembers.length})</strong>
+                    {selectedLinkedMembers.length ? (
+                      <ul className="map-linked-list">
+                        {selectedLinkedMembers.map((member) => (
+                          <li key={member.id}>
+                            <span>{member.fullName}</span>
+                            <em>{member.status}</em>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : <p className="map-none">Brak członków.</p>}
+                  </section>
+                </div>
+
+                {linkedError ? <p className="map-point-error">{linkedError}</p> : null}
+                {!selectedLinkedCoop ? (
+                  <p className="map-point-help">Ta karta pochodzi z danych punktu; pełna edycja będzie dostępna po odświeżeniu listy spółdzielni.</p>
                 ) : null}
               </div>
-            ) : null}
+            ) : (
+              <div className="map-details-cols">
+                <div>
+                  <div className="map-col-title">OPIEKUNOWIE</div>
+                  <div>
+                    <strong>Główny:</strong> {selectedLead?.name ?? 'Brak przypisania'}
+                  </div>
+                  <div className="map-head-right" style={{ marginTop: 8, alignItems: 'flex-start' }}>
+                    <select
+                      className="add-entry-select"
+                      value={leadDraft}
+                      onChange={(event) => setLeadDraft(event.target.value)}
+                    >
+                      <option value="">Brak głównego opiekuna</option>
+                      {db.caregivers.map((caregiver) => (
+                        <option key={caregiver.id} value={caregiver.id}>
+                          {caregiver.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="primary-btn"
+                      onClick={() =>
+                        selectedVoivodeship &&
+                        onSetVoivodeshipLead(selectedVoivodeship, leadDraft ? Number(leadDraft) : null)
+                      }
+                      type="button"
+                    >
+                      Ustaw głównego
+                    </button>
+                  </div>
+                  {selectedCaregivers.length ? (
+                    selectedCaregivers.map((caregiver) => <div key={caregiver.id}>• {caregiver.name}</div>)
+                  ) : (
+                    <span className="map-none-red">Brak opiekunów</span>
+                  )}
+                </div>
+                <div>
+                  <div className="map-col-title">SPÓŁDZIELNIE</div>
+                  <div className="map-head-right" style={{ marginTop: 8, alignItems: 'flex-start' }}>
+                    <select value={cooperativeDraft} onChange={(event) => setCooperativeDraft(event.target.value)}>
+                      <option value="">Brak</option>
+                      {cooperativeOptions.map((coop) => (
+                        <option key={coop.id} value={coop.id}>
+                          {coop.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="primary-btn"
+                      onClick={() =>
+                        cooperativeDraft
+                          ? updateAssignments(
+                              Array.from(new Set([...(selectedAssignment?.cooperativeIds ?? []), Number(cooperativeDraft)])),
+                              selectedAssignment?.areaIds ?? [],
+                            )
+                          : null
+                      }
+                      type="button"
+                    >
+                      Dodaj
+                    </button>
+                  </div>
+                  {assignedCooperatives.length ? (
+                    assignedCooperatives.map((coop) => (
+                      <div key={coop.id}>
+                        • {coop.name}{' '}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateAssignments(
+                              (selectedAssignment?.cooperativeIds ?? []).filter((id) => id !== coop.id),
+                              selectedAssignment?.areaIds ?? [],
+                            )
+                          }
+                        >
+                          Usuń
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <span className="map-none">Brak</span>
+                  )}
+                </div>
+                <div>
+                  <div className="map-col-title">TERENY</div>
+                  <div className="map-head-right" style={{ marginTop: 8, alignItems: 'flex-start' }}>
+                    <select value={areaDraft} onChange={(event) => setAreaDraft(event.target.value)}>
+                      <option value="">Brak</option>
+                      {areaOptions.map((area) => (
+                        <option key={area.id} value={area.id}>
+                          {area.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="primary-btn"
+                      onClick={() =>
+                        areaDraft
+                          ? updateAssignments(
+                              selectedAssignment?.cooperativeIds ?? [],
+                              Array.from(new Set([...(selectedAssignment?.areaIds ?? []), Number(areaDraft)])),
+                            )
+                          : null
+                      }
+                      type="button"
+                    >
+                      Dodaj
+                    </button>
+                  </div>
+                  {assignedAreas.length ? (
+                    assignedAreas.map((area) => (
+                      <div key={area.id}>
+                        • {area.name}{' '}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateAssignments(
+                              selectedAssignment?.cooperativeIds ?? [],
+                              (selectedAssignment?.areaIds ?? []).filter((id) => id !== area.id),
+                            )
+                          }
+                        >
+                          Usuń
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <span className="map-none">Brak</span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
       </section>
