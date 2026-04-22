@@ -6,7 +6,6 @@ import type { AddEntryValues } from '@/components/common/AddEntryModal';
 import { VOIVODESHIPS } from '@/constants/voivodeships';
 import {
   listCooperatives,
-  createCooperative,
   updateCooperative,
   deleteCooperative,
   formatCooperativeHistoryMessage,
@@ -190,53 +189,8 @@ export default function SpoldzielnieSection({
   }, [searchParams, setSearchParams]);
 
   // ── add cooperative ───────────────────────────────────────────────────────
-  const handleAddCooperative = async (values: AddEntryValues): Promise<number | null> => {
-    if (!selfFetch) {
-      await onAddCooperativeProp?.(values);
-      return null;
-    }
-    const name = (values['coop-name'] ?? '').trim();
-    if (!name) return null;
-
-    setActionError('');
-    try {
-      const areaIds = String(values['coop-area-ids'] ?? '')
-        .split(',')
-        .map((id) => Number(id.trim()))
-        .filter((id) => Number.isInteger(id) && id > 0);
-      const membersRaw = String(values['coop-members'] ?? '[]');
-      const parsedMembers = JSON.parse(membersRaw) as CreateMember[];
-      const supervisorId = Number(values['coop-caregiver-id'] ?? 0);
-      const registrationDate = (values['coop-registration-date'] ?? '').trim();
-
-      const memberDtos = parsedMembers
-        .filter((m) => Number.isInteger(m.userId) && m.userId > 0)
-        .map((m) => ({ userId: m.userId, status: m.status === 'aktywny' ? 'AKTYWNY' : 'NIEAKTYWNY' }));
-
-      const installedPowerVal = Number(values['coop-installed-power'] ?? 0);
-
-      const created = await createCooperative({
-        name,
-        address: (values['coop-address'] ?? '').trim(),
-        region: (values['coop-voivodeship'] ?? '').trim() || 'nieokreślone',
-        ratedPower: Number(values['coop-planned-power'] ?? 0) || 0,
-        ...(installedPowerVal > 0 ? { installedPower: installedPowerVal } : {}),
-        boardName: (values['coop-board-name'] ?? '').trim(),
-        boardEmail: (values['coop-board-email'] ?? '').trim(),
-        boardPhone: (values['coop-board-phone'] ?? '').trim(),
-        supervisorId,
-        registrationDate,
-        ...(areaIds.length > 0 ? { areaIds } : {}),
-        ...(memberDtos.length > 0 ? { members: memberDtos } : {}),
-      });
-      setPage(1);
-      await fetchCooperatives();
-      return created.id;
-    } catch {
-      setActionError('Nie udało się dodać spółdzielni.');
-      throw new Error('create_failed');
-    }
-  };
+  // In selfFetch mode creation happens via /mapa?pendingCoop=1 flow (see submitCreate).
+  // Prop-driven mode uses onAddCooperativeProp directly in submitCreate.
 
   useEffect(() => {
     if (!createOpen && !editing) return;
@@ -296,46 +250,39 @@ export default function SpoldzielnieSection({
     ) {
       return;
     }
-    const values: AddEntryValues = {
-      'coop-name': createValues.name,
-      'coop-address': createValues.address,
-      'coop-voivodeship': createValues.voivodeship,
-      'coop-planned-power': createValues.plannedPower,
-      'coop-installed-power': createValues.installedPower,
-      'coop-caregiver-id': createValues.caregiverId,
-      'coop-board-name': createValues.boardName,
-      'coop-board-email': createValues.boardEmail,
-      'coop-board-phone': createValues.boardPhone,
-      'coop-registration-date': createValues.registrationDate,
-      'coop-area-ids': selectedAreaIds.join(','),
-      'coop-members': JSON.stringify(createMembers),
-    };
-    setCreateSaving(true);
-    void (async () => {
-      try {
-        const createdId = await handleAddCooperative(values);
-        if (createdId) {
-          const existingRaw = localStorage.getItem('coop_creation_details_v1');
-          const existing = existingRaw ? JSON.parse(existingRaw) as Record<string, unknown> : {};
-          existing[String(createdId)] = {
-            cooperativeId: createdId,
-            board: {
-              name: createValues.boardName,
-              email: createValues.boardEmail,
-              phone: createValues.boardPhone,
-            },
-            members: createMembers,
-            areaIds: selectedAreaIds,
-            registrationDate: createValues.registrationDate,
-          };
-          localStorage.setItem('coop_creation_details_v1', JSON.stringify(existing));
-          navigate(`/mapa?linkCoop=${createdId}`);
-        }
-        closeCreate();
-      } finally {
-        setCreateSaving(false);
-      }
-    })();
+
+    if (!selfFetch) {
+      // prop-driven mode (caregiver view) — keep old flow
+      const values: AddEntryValues = {
+        'coop-name': createValues.name,
+        'coop-address': createValues.address,
+        'coop-voivodeship': createValues.voivodeship,
+        'coop-planned-power': createValues.plannedPower,
+        'coop-installed-power': createValues.installedPower,
+        'coop-caregiver-id': createValues.caregiverId,
+        'coop-board-name': createValues.boardName,
+        'coop-board-email': createValues.boardEmail,
+        'coop-board-phone': createValues.boardPhone,
+        'coop-registration-date': createValues.registrationDate,
+        'coop-area-ids': selectedAreaIds.join(','),
+        'coop-members': JSON.stringify(createMembers),
+      };
+      setCreateSaving(true);
+      void (async () => {
+        try { await onAddCooperativeProp?.(values); } finally { setCreateSaving(false); }
+      })();
+      closeCreate();
+      return;
+    }
+
+    // self-fetch mode: save form data to localStorage, redirect to map for point selection
+    localStorage.setItem('pending_coop_v1', JSON.stringify({
+      ...createValues,
+      selectedAreaIds,
+      members: createMembers,
+    }));
+    closeCreate();
+    navigate('/mapa?pendingCoop=1');
   };
 
   const openMembersModalForCreate = () => {

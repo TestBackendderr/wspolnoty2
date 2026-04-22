@@ -4,7 +4,15 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AppDatabase } from '@/types/domain';
 import PromptModal from '@/components/common/PromptModal';
-import { mapStatusToApi, updateCooperative } from '@/services/cooperatives';
+import {
+  createCooperative,
+  getCooperativeById,
+  listMapPoints,
+  mapStatusToApi,
+  updateCooperative,
+} from '@/services/cooperatives';
+import type { Cooperative } from '@/types/domain';
+import { toApiRegion } from '@/utils/regions';
 
 interface MapaPolskiSectionProps {
   db: AppDatabase;
@@ -39,12 +47,19 @@ interface PendingPointPayload {
   voivodeshipLabel: string;
 }
 
-interface FrontendCoopDetails {
-  cooperativeId: number;
-  board?: { name?: string; email?: string; phone?: string };
-  members?: Array<{ id: number; fullName: string; status: string }>;
-  areaIds?: number[];
-  createdAt?: string;
+interface PendingCoopData {
+  name: string;
+  address: string;
+  voivodeship: string;
+  plannedPower: string;
+  installedPower: string;
+  registrationDate: string;
+  caregiverId: string;
+  boardName: string;
+  boardEmail: string;
+  boardPhone: string;
+  selectedAreaIds: number[];
+  members: Array<{ id: number; userId: number; fullName: string; status: 'aktywny' | 'nieaktywny' }>;
 }
 
 const VOIVODESHIPS: VoivodeshipPoint[] = [
@@ -92,6 +107,46 @@ function getNearestVoivodeshipId(center: [number, number]): string {
   return nearest.id;
 }
 
+async function getVoivodeshipFromCoords(
+  lat: number,
+  lng: number,
+): Promise<{ id: string; label: string }> {
+  const fallback = () => {
+    const id = getNearestVoivodeshipId([lat, lng]);
+    const label = VOIVODESHIPS.find((v) => v.id === id)?.label ?? 'Polska';
+    return { id, label };
+  };
+
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=5&accept-language=pl`,
+      { headers: { 'User-Agent': 'crm-energy-app/1.0' } },
+    );
+    if (!res.ok) return fallback();
+    const data = await res.json() as { address?: { state?: string } };
+    const rawState = data?.address?.state ?? '';
+    // Nominatim returns e.g. "województwo mazowieckie" — strip prefix
+    const stateName = rawState
+      .toLowerCase()
+      .replace(/^województwo\s+/, '')
+      .replace(/^wojewodztwo\s+/, '')
+      .trim();
+
+    if (!stateName) return fallback();
+
+    const found = VOIVODESHIPS.find(
+      (v) =>
+        normalizeVoivodeship(v.label) === normalizeVoivodeship(stateName) ||
+        v.id === normalizeVoivodeship(stateName),
+    );
+    if (found) return { id: found.id, label: found.label };
+  } catch {
+    // network error → fallback
+  }
+
+  return fallback();
+}
+
 export default function MapaPolskiSection({
   db,
   onSetVoivodeshipLead,
@@ -116,42 +171,46 @@ export default function MapaPolskiSection({
   const [linkedAreaDraft, setLinkedAreaDraft] = useState('');
   const [linkedSaving, setLinkedSaving] = useState(false);
   const [linkedError, setLinkedError] = useState('');
-  const [linkedCoopOverrides, setLinkedCoopOverrides] = useState<Record<number, {
-    status?: AppDatabase['cooperatives'][number]['status'];
-    supervisorId?: number | null;
-    areas?: AppDatabase['cooperatives'][number]['areas'];
-  }>>({});
+  const [pendingCoopSaving, setPendingCoopSaving] = useState(false);
+  const [pendingCoopError, setPendingCoopError] = useState('');
+  const [selectedPointCoopData, setSelectedPointCoopData] = useState<Cooperative | null>(null);
+  const [selectedPointCoopLoading, setSelectedPointCoopLoading] = useState(false);
+  const [selectedPointCoopError, setSelectedPointCoopError] = useState('');
   const linkCoopId = Number(searchParams.get('linkCoop') ?? 0) || null;
   const linkCoop = linkCoopId ? db.cooperatives.find((coop) => coop.id === linkCoopId) ?? null : null;
 
-  const frontendDetailsByCoopId = useMemo(() => {
-    try {
-      const raw = localStorage.getItem('coop_creation_details_v1');
-      if (!raw) return {} as Record<string, FrontendCoopDetails>;
-      return JSON.parse(raw) as Record<string, FrontendCoopDetails>;
-    } catch {
-      return {} as Record<string, FrontendCoopDetails>;
-    }
-  }, []);
+  // Load map points from API on mount
+  const fetchMapPoints = () => {
+    void listMapPoints().then((pts) => {
+      setCustomPoints(
+        pts.map((p) => ({
+          id: p.id,
+          name: p.name,
+          voivodeshipId: p.voivodeshipId,
+          valueGwh: 0,
+          center: [p.lat, p.lng] as [number, number],
+          cooperativeId: p.cooperativeId,
+        })),
+      );
+    }).catch(() => {
+      // silent — map is still usable without points
+    });
+  };
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('custom_map_points_v1');
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as CustomMapPoint[];
-      setCustomPoints(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      setCustomPoints([]);
-    }
+    fetchMapPoints();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem('custom_map_points_v1', JSON.stringify(customPoints));
-  }, [customPoints]);
 
   useEffect(() => {
     if (linkCoopId) setIsAddingPoint(true);
   }, [linkCoopId]);
+
+  const isPendingCoop = searchParams.get('pendingCoop') === '1';
+
+  useEffect(() => {
+    if (isPendingCoop) setIsAddingPoint(true);
+  }, [isPendingCoop]);
   const allPoints = useMemo<VoivodeshipPoint[]>(
     () =>
       customPoints.map(({ id, name, center }) => ({
@@ -162,6 +221,22 @@ export default function MapaPolskiSection({
       })),
     [customPoints],
   );
+
+  // Fetch coop details when a custom point is selected
+  useEffect(() => {
+    const point = customPoints.find((p) => String(p.id) === selectedVoivodeship);
+    if (!point?.cooperativeId) {
+      setSelectedPointCoopData(null);
+      setSelectedPointCoopError('');
+      return;
+    }
+    setSelectedPointCoopLoading(true);
+    setSelectedPointCoopError('');
+    void getCooperativeById(point.cooperativeId)
+      .then((coop) => setSelectedPointCoopData(coop))
+      .catch(() => setSelectedPointCoopError('Nie udało się pobrać danych spółdzielni.'))
+      .finally(() => setSelectedPointCoopLoading(false));
+  }, [selectedVoivodeship, customPoints]);
 
   const grouped = useMemo(() => {
     const coopByVoiv = new Map<string, AppDatabase['cooperatives']>();
@@ -218,6 +293,22 @@ export default function MapaPolskiSection({
     allPoints.forEach((voiv) => {
       const caregiversCount = grouped.caregiversByVoiv.get(voiv.id)?.length ?? 0;
       const cooperativesCount = grouped.coopByVoiv.get(voiv.id)?.length ?? 0;
+      const linkedPoint = voiv.isCustom
+        ? customPoints.find((point) => String(point.id) === voiv.id) ?? null
+        : null;
+      const linkedCoop = linkedPoint?.cooperativeId
+        ? db.cooperatives.find((coop) => coop.id === linkedPoint.cooperativeId) ?? null
+        : null;
+      const linkedOpiekun =
+        linkedCoop?.supervisor
+          ? `${linkedCoop.supervisor.name} ${linkedCoop.supervisor.surname}`.trim()
+          : linkedCoop?.caregiverId
+            ? (() => {
+                const caregiver = db.caregivers.find((item) => item.id === linkedCoop.caregiverId);
+                return caregiver ? `${caregiver.name} ${caregiver.surname}`.trim() : null;
+              })()
+            : null;
+      const linkedAreasCount = linkedCoop?.areas?.length ?? 0;
       const leadExists = db.voivodeshipLeads.some(
         (lead) => lead.voivodeshipId === voiv.id && lead.caregiverId !== null,
       );
@@ -232,15 +323,15 @@ export default function MapaPolskiSection({
         fillOpacity: 0.95,
       });
 
-      marker.bindTooltip(
-        `<b>${voiv.label}</b><br>${caregiversCount} opiekunów<br>${cooperativesCount} spółdzielni`,
-        { direction: 'top' },
-      );
+      const tooltipHtml = voiv.isCustom
+        ? `<b>${voiv.label}</b><br>Opiekun: ${linkedOpiekun ?? 'Brak'}<br>${linkedAreasCount} terenów`
+        : `<b>${voiv.label}</b><br>${caregiversCount} opiekunów<br>${cooperativesCount} spółdzielni`;
+      marker.bindTooltip(tooltipHtml, { direction: 'top' });
       marker.on('click', () => setSelectedVoivodeship(voiv.id));
       marker.addTo(markersLayer);
     });
 
-  }, [allPoints, db.voivodeshipLeads, grouped]);
+  }, [allPoints, customPoints, db.caregivers, db.cooperatives, db.voivodeshipLeads, grouped]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -251,77 +342,119 @@ export default function MapaPolskiSection({
 
       const nextId = Date.now();
       const pointCenter: [number, number] = [event.latlng.lat, event.latlng.lng];
-      const nearestVoivodeshipId = getNearestVoivodeshipId(pointCenter);
-      const nearestVoivodeshipLabel =
-        VOIVODESHIPS.find((voivodeship) => voivodeship.id === nearestVoivodeshipId)?.label ?? 'Polska';
 
-      if (linkCoopId && linkCoop) {
-        setCustomPoints((prev) => [
-          ...prev,
-          {
-            id: nextId,
-            name: linkCoop.name,
-            voivodeshipId: nearestVoivodeshipId,
-            valueGwh: 0,
-            center: pointCenter,
-            cooperativeId: linkCoopId,
-          },
-        ]);
-        setSelectedVoivodeship(String(nextId));
-        setIsAddingPoint(false);
-        const nextParams = new URLSearchParams(searchParams);
-        nextParams.delete('linkCoop');
-        setSearchParams(nextParams, { replace: true });
-        return;
-      }
-
-      setPendingPoint({
-        id: nextId,
-        center: pointCenter,
-        voivodeshipId: nearestVoivodeshipId,
-        voivodeshipLabel: nearestVoivodeshipLabel,
-      });
-      setPendingPointName('');
+      // Disable further clicks immediately so double-click doesn't add two points
       setIsAddingPoint(false);
+
+      void (async () => {
+        const { id: voivId, label: voivLabel } = await getVoivodeshipFromCoords(
+          pointCenter[0],
+          pointCenter[1],
+        );
+
+        // ── Case 1: pending new cooperative creation ──────────────────────
+        if (isPendingCoop) {
+          const rawPending = localStorage.getItem('pending_coop_v1');
+          if (!rawPending) {
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.delete('pendingCoop');
+            setSearchParams(nextParams, { replace: true });
+            return;
+          }
+          const pending = JSON.parse(rawPending) as PendingCoopData;
+          const installedPowerNum = Number(pending.installedPower);
+          const memberDtos = (pending.members ?? [])
+            .filter((m) => m.userId > 0)
+            .map((m) => ({ userId: m.userId, status: m.status === 'aktywny' ? 'AKTYWNY' : 'NIEAKTYWNY' }));
+
+          setPendingCoopSaving(true);
+          setPendingCoopError('');
+          try {
+            await createCooperative({
+              name: pending.name,
+              address: pending.address,
+              region: toApiRegion(pending.voivodeship),
+              ratedPower: Number(pending.plannedPower) || 0,
+              ...(installedPowerNum > 0 ? { installedPower: installedPowerNum } : {}),
+              boardName: pending.boardName,
+              boardEmail: pending.boardEmail,
+              boardPhone: pending.boardPhone,
+              supervisorId: Number(pending.caregiverId),
+              registrationDate: pending.registrationDate,
+              ...(pending.selectedAreaIds?.length > 0 ? { areaIds: pending.selectedAreaIds } : {}),
+              ...(memberDtos.length > 0 ? { members: memberDtos } : {}),
+              mapPoint: {
+                name: pending.name,
+                lat: pointCenter[0],
+                lng: pointCenter[1],
+                voivodeshipId: voivId,
+                voivodeshipLabel: voivLabel,
+              },
+            });
+
+            localStorage.removeItem('pending_coop_v1');
+            // Refresh map points from API so the new point appears
+            fetchMapPoints();
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.delete('pendingCoop');
+            setSearchParams(nextParams, { replace: true });
+            navigate('/spoldzielnie');
+          } catch {
+            setPendingCoopError('Nie udało się utworzyć spółdzielni. Spróbuj ponownie.');
+            setIsAddingPoint(true); // re-enable so user can retry
+          } finally {
+            setPendingCoopSaving(false);
+          }
+          return;
+        }
+
+        // ── Case 2: link existing cooperative to a new map point ─────────
+        if (linkCoopId && linkCoop) {
+          setCustomPoints((prev) => [
+            ...prev,
+            {
+              id: nextId,
+              name: linkCoop.name,
+              voivodeshipId: voivId,
+              valueGwh: 0,
+              center: pointCenter,
+              cooperativeId: linkCoopId,
+            },
+          ]);
+          setSelectedVoivodeship(String(nextId));
+          const nextParams = new URLSearchParams(searchParams);
+          nextParams.delete('linkCoop');
+          setSearchParams(nextParams, { replace: true });
+          return;
+        }
+
+        // ── Case 3: regular custom point ──────────────────────────────────
+        setPendingPoint({
+          id: nextId,
+          center: pointCenter,
+          voivodeshipId: voivId,
+          voivodeshipLabel: voivLabel,
+        });
+        setPendingPointName('');
+      })();
     };
 
     map.on('click', handleMapClick);
     return () => {
       map.off('click', handleMapClick);
     };
-  }, [isAddingPoint, linkCoop, linkCoopId, searchParams, setSearchParams]);
+  }, [isAddingPoint, isPendingCoop, linkCoop, linkCoopId, navigate, searchParams, setSearchParams]);
 
   const selectedMeta = allPoints.find((v) => v.id === selectedVoivodeship) ?? null;
-  const selectedCustomPoint = selectedMeta?.isCustom
-    ? customPoints.find((point) => String(point.id) === selectedMeta.id) ?? null
-    : null;
-  const selectedLinkedCoopId = selectedCustomPoint?.cooperativeId ?? null;
-  const selectedLinkedCoopBase = selectedLinkedCoopId
-    ? db.cooperatives.find((coop) => coop.id === selectedLinkedCoopId) ?? null
-    : null;
-  const selectedLinkedCoop = selectedLinkedCoopBase
-    ? {
-        ...selectedLinkedCoopBase,
-        ...(linkedCoopOverrides[selectedLinkedCoopBase.id] ?? {}),
-      }
-    : null;
-  const selectedLinkedDetails = selectedLinkedCoopId
-    ? frontendDetailsByCoopId[String(selectedLinkedCoopId)] ?? null
-    : null;
-  const selectedLinkedAreas = selectedLinkedCoop?.areas?.length
-    ? selectedLinkedCoop.areas
-    : selectedLinkedDetails?.areaIds?.length
-      ? db.areas.filter((area) => selectedLinkedDetails.areaIds?.includes(area.id))
-      : [];
-  const selectedLinkedMembers = selectedLinkedCoop?.members?.length
-    ? selectedLinkedCoop.members
-    : selectedLinkedDetails?.members ?? [];
+  const isCustomSelectedPoint = Boolean(selectedMeta?.isCustom);
+
+  // Data for the linked coop card — comes entirely from API fetch
+  const selectedLinkedCoop = selectedPointCoopData;
+  const selectedLinkedAreas = selectedLinkedCoop?.areas ?? [];
+  const selectedLinkedMembers = selectedLinkedCoop?.members ?? [];
   const linkedAssignedAreaIds = new Set(selectedLinkedAreas.map((area) => area.id));
   const linkedAvailableAreas = db.areas.filter((area) => !linkedAssignedAreaIds.has(area.id));
-  const selectedLinkedCaregiver = selectedLinkedCoop?.supervisorId
-    ? db.caregivers.find((caregiver) => caregiver.id === selectedLinkedCoop.supervisorId) ?? null
-    : null;
-  const isCustomSelectedPoint = Boolean(selectedMeta?.isCustom);
+  const selectedLinkedCaregiver = selectedLinkedCoop?.supervisor ?? null;
   const shouldShowLinkedCard = isCustomSelectedPoint;
   const selectedCaregiversByVoivodeship = selectedVoivodeship
     ? grouped.caregiversByVoiv.get(selectedVoivodeship) ?? []
@@ -368,6 +501,7 @@ export default function MapaPolskiSection({
       setLinkedStatusDraft('');
       setLinkedAreaDraft('');
       setLinkedError('');
+      setSelectedPointCoopError('');
       return;
     }
     setLinkedCaregiverDraft(selectedLinkedCoop.supervisorId ? String(selectedLinkedCoop.supervisorId) : '');
@@ -425,14 +559,7 @@ export default function MapaPolskiSection({
     void (async () => {
       try {
         const updated = await updateCooperative(selectedLinkedCoop.id, patch);
-        setLinkedCoopOverrides((prev) => ({
-          ...prev,
-          [selectedLinkedCoop.id]: {
-            status: updated.status,
-            supervisorId: updated.supervisorId ?? null,
-            areas: updated.areas,
-          },
-        }));
+        setSelectedPointCoopData(updated);
       } catch {
         setLinkedError('Nie udało się zapisać zmian spółdzielni.');
       } finally {
@@ -456,13 +583,7 @@ export default function MapaPolskiSection({
         const updated = await updateCooperative(selectedLinkedCoop.id, {
           areaIds: [...currentAreaIds, nextAreaId],
         });
-        setLinkedCoopOverrides((prev) => ({
-          ...prev,
-          [selectedLinkedCoop.id]: {
-            ...prev[selectedLinkedCoop.id],
-            areas: updated.areas,
-          },
-        }));
+        setSelectedPointCoopData(updated);
         setLinkedAreaDraft('');
       } catch {
         setLinkedError('Nie udało się dodać terenu.');
@@ -483,13 +604,7 @@ export default function MapaPolskiSection({
         const updated = await updateCooperative(selectedLinkedCoop.id, {
           areaIds: nextAreaIds,
         });
-        setLinkedCoopOverrides((prev) => ({
-          ...prev,
-          [selectedLinkedCoop.id]: {
-            ...prev[selectedLinkedCoop.id],
-            areas: updated.areas,
-          },
-        }));
+        setSelectedPointCoopData(updated);
       } catch {
         setLinkedError('Nie udało się usunąć terenu.');
       } finally {
@@ -504,13 +619,43 @@ export default function MapaPolskiSection({
         <span>+</span>
         <span>Dodaj Spółdzielnie</span>
       </button>
-      {isAddingPoint ? (
+      {isPendingCoop && isAddingPoint ? (
+        <div className="map-pending-coop-banner">
+          <div>
+            <strong>Wybierz lokalizację spółdzielni na mapie</strong>
+            {(() => {
+              try {
+                const raw = localStorage.getItem('pending_coop_v1');
+                const d = raw ? JSON.parse(raw) as PendingCoopData : null;
+                return d ? <span> — {d.name}</span> : null;
+              } catch { return null; }
+            })()}
+          </div>
+          <button
+            className="primary-outline-btn"
+            type="button"
+            onClick={() => {
+              localStorage.removeItem('pending_coop_v1');
+              setIsAddingPoint(false);
+              const nextParams = new URLSearchParams(searchParams);
+              nextParams.delete('pendingCoop');
+              setSearchParams(nextParams, { replace: true });
+            }}
+          >
+            Anuluj
+          </button>
+        </div>
+      ) : isAddingPoint ? (
         <p className="map-point-help">
           {linkCoop
             ? `Wybierz punkt na mapie dla spółdzielni: ${linkCoop.name}`
             : 'Kliknij w wybrane miejsce na mapie, aby dodać punkt.'}
         </p>
       ) : null}
+      {pendingCoopSaving ? (
+        <p className="map-point-help">Trwa tworzenie spółdzielni...</p>
+      ) : null}
+      {pendingCoopError ? <p className="map-point-error">{pendingCoopError}</p> : null}
       {customPointError ? <p className="map-point-error">{customPointError}</p> : null}
       <PromptModal
         open={pendingPoint !== null}
@@ -563,8 +708,14 @@ export default function MapaPolskiSection({
             </div>
             {shouldShowLinkedCard ? (
               <div className="map-linked-coop-card">
+                {selectedPointCoopLoading ? (
+                  <p className="map-point-help">Ładowanie danych spółdzielni...</p>
+                ) : selectedPointCoopError ? (
+                  <p className="map-point-error">{selectedPointCoopError}</p>
+                ) : null}
+
                 <div className="map-linked-header">
-                  <h5>Szczegóły spółdzielni z tworzenia</h5>
+                  <h5>Szczegóły spółdzielni</h5>
                   <span className="map-linked-status">{selectedLinkedCoop?.status || '-'}</span>
                 </div>
 
@@ -572,13 +723,28 @@ export default function MapaPolskiSection({
                   <p><strong>Nazwa:</strong> {selectedLinkedCoop?.name || selectedMeta.label}</p>
                   <p><strong>Adres:</strong> {selectedLinkedCoop?.address || '-'}</p>
                   <p><strong>Województwo:</strong> {selectedLinkedCoop?.voivodeship || '-'}</p>
-                  <p><strong>Aktualny opiekun:</strong> {selectedLinkedCaregiver ? selectedLinkedCaregiver.name : 'Brak przypisania'}</p>
-                  <p><strong>Moc planowana:</strong> {selectedLinkedCoop?.plannedPower ?? '-'} {selectedLinkedCoop ? 'kWp' : ''}</p>
-                  <p><strong>Moc zainstalowana:</strong> {selectedLinkedCoop?.installedPower ?? '-'} {selectedLinkedCoop ? 'kWp' : ''}</p>
-                  <p><strong>Zarząd:</strong> {selectedLinkedDetails?.board?.name || selectedLinkedCoop?.boardName || '-'}</p>
-                  <p><strong>E-mail zarządu:</strong> {selectedLinkedDetails?.board?.email || selectedLinkedCoop?.boardEmail || '-'}</p>
-                  <p><strong>Telefon zarządu:</strong> {selectedLinkedDetails?.board?.phone || selectedLinkedCoop?.boardPhone || '-'}</p>
-                  <p><strong>Data utworzenia:</strong> {selectedLinkedDetails?.createdAt || '-'}</p>
+                  <p><strong>Opiekun:</strong> {
+                    selectedLinkedCaregiver
+                      ? `${selectedLinkedCaregiver.name} ${selectedLinkedCaregiver.surname}`
+                      : 'Brak przypisania'
+                  }</p>
+                  {selectedLinkedCaregiver && (
+                    <>
+                      <p><strong>E-mail opiekuna:</strong> {selectedLinkedCaregiver.email}</p>
+                      <p><strong>Telefon opiekuna:</strong> {selectedLinkedCaregiver.phoneNumber}</p>
+                    </>
+                  )}
+                  <p><strong>Moc znamionowa:</strong> {selectedLinkedCoop?.plannedPower ?? '-'} {selectedLinkedCoop ? 'kW' : ''}</p>
+                  <p><strong>Moc zainstalowana:</strong> {selectedLinkedCoop?.installedPower ? `${selectedLinkedCoop.installedPower} kWp` : '—'}</p>
+                  <p><strong>Zarząd:</strong> {selectedLinkedCoop?.boardName || '-'}</p>
+                  <p><strong>E-mail zarządu:</strong> {selectedLinkedCoop?.boardEmail || '-'}</p>
+                  <p><strong>Telefon zarządu:</strong> {selectedLinkedCoop?.boardPhone || '-'}</p>
+                  {selectedLinkedCoop?.registrationDate && (
+                    <p><strong>Data rejestracji:</strong> {new Date(selectedLinkedCoop.registrationDate).toLocaleDateString('pl-PL')}</p>
+                  )}
+                  {selectedLinkedCoop?.createdBy && (
+                    <p><strong>Utworzył:</strong> {selectedLinkedCoop.createdBy.name} {selectedLinkedCoop.createdBy.surname}</p>
+                  )}
                 </div>
 
                 <div className="map-linked-controls">
@@ -672,9 +838,6 @@ export default function MapaPolskiSection({
                 </div>
 
                 {linkedError ? <p className="map-point-error">{linkedError}</p> : null}
-                {!selectedLinkedCoop ? (
-                  <p className="map-point-help">Ta karta pochodzi z danych punktu; pełna edycja będzie dostępna po odświeżeniu listy spółdzielni.</p>
-                ) : null}
               </div>
             ) : (
               <div className="map-details-cols">

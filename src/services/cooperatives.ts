@@ -46,6 +46,7 @@ interface CooperativesApiItem {
     createdAt: string;
     user: { id: number; name: string; surname: string };
   }>;
+  mapPoint?: MapPointData | null;
   createdAt?: string;
   updatedAt?: string;
   history?: CooperativeHistoryItem[];
@@ -64,6 +65,20 @@ interface CreateCooperativeMember {
   status?: string;
 }
 
+export interface MapPointInput {
+  name: string;
+  lat: number;
+  lng: number;
+  voivodeshipId: string;
+  voivodeshipLabel: string;
+}
+
+export interface MapPointData extends MapPointInput {
+  id: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface CreateCooperativePayload {
   name: string;
   address: string;
@@ -77,6 +92,7 @@ interface CreateCooperativePayload {
   registrationDate: string;
   areaIds?: number[];
   members?: CreateCooperativeMember[];
+  mapPoint?: MapPointInput;
 }
 
 interface UpdateCooperativePayload {
@@ -176,6 +192,7 @@ function mapCooperativeFromApi(item: CooperativesApiItem): Cooperative {
       fullName: `${member.user.name} ${member.user.surname}`.trim(),
       status: member.status === 'AKTYWNY' ? 'aktywny' : 'nieaktywny',
     })),
+    mapPoint: item.mapPoint ?? null,
     history: item.history,
   };
 }
@@ -230,6 +247,22 @@ export async function updateCooperative(
 
 export async function deleteCooperative(id: number): Promise<void> {
   await apiRequest(`/cooperatives/${id}`, { method: 'DELETE', skipJson: true });
+}
+
+export interface MapPointWithCoopId {
+  id: number;
+  name: string;
+  lat: number;
+  lng: number;
+  voivodeshipId: string;
+  voivodeshipLabel: string;
+  cooperativeId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listMapPoints(): Promise<MapPointWithCoopId[]> {
+  return apiRequest<MapPointWithCoopId[]>('/cooperatives/map-points');
 }
 
 /** Loads every cooperative via repeated paginated GET /cooperatives calls. */

@@ -74,6 +74,14 @@ export interface Cooperative {
   supervisor?: CooperativeSupervisorRef;
   areas?: CooperativeAreaRef[];
   members: CooperativeMember[];
+  mapPoint?: {
+    id: number;
+    name: string;
+    lat: number;
+    lng: number;
+    voivodeshipId: string;
+    voivodeshipLabel: string;
+  } | null;
   /** Filled when API returns it (e.g. list + detail). */
   history?: CooperativeHistoryItem[];
 }
