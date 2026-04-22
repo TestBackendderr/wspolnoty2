@@ -622,6 +622,293 @@ body {
   padding: 12px 14px;
 }
 
+.sales-plan-manage-btn {
+  min-height: 34px;
+  padding: 6px 14px;
+}
+
+.sales-plan-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  padding: 0 16px 16px;
+}
+
+.sales-plan-card {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
+  padding: 20px;
+  display: grid;
+  gap: 10px;
+}
+
+.sales-plan-card-title {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.sales-plan-card-quarter {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.sales-plan-card-kpi {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sales-plan-card-kpi p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.sales-plan-card-kpi strong {
+  font-size: 26px;
+}
+
+.sales-plan-card-metrics {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.sales-plan-modal-v2 {
+  width: min(1040px, calc(100% - 24px));
+  max-height: 90vh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 14px;
+  padding: 14px;
+  box-sizing: border-box;
+}
+
+.sales-plan-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sales-plan-modal-head h3 {
+  margin: 0;
+}
+
+.sales-plan-modal-head button {
+  border: none;
+  background: transparent;
+  font-size: 28px;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+.sales-plan-target-box {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 14px;
+  background: #fff;
+}
+
+.sales-plan-target-edit {
+  flex: 1;
+  display: grid;
+  gap: 8px;
+}
+
+.sales-plan-target-edit label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sales-plan-target-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.sales-plan-target-actions input {
+  flex: 1;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.sales-plan-target-progress {
+  min-width: 190px;
+  text-align: right;
+}
+
+.sales-plan-target-progress p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.sales-plan-target-progress strong {
+  font-size: 42px;
+  color: #059669;
+  line-height: 1;
+}
+
+.sales-plan-columns-v2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.sales-plan-column-v2 {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 12px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 10px;
+  min-height: 0;
+}
+
+.sales-plan-column-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.sales-plan-column-head h4 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.sales-plan-column-head h4 span {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.sales-plan-entries-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.sales-plan-entries-table td {
+  font-size: 13px;
+}
+
+.sales-plan-column-v2 .table-wrapper {
+  width: 100%;
+  max-height: 46vh;
+  overflow: auto;
+  border: 1px solid #eef2f7;
+  border-radius: 10px;
+}
+
+.sales-plan-entries-table {
+  min-width: 760px;
+}
+
+.sales-plan-entry-modal {
+  width: min(980px, 95vw);
+  max-height: 90vh;
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+}
+
+.sales-plan-entry-modal h3 {
+  margin: 0;
+}
+
+.sales-plan-entry-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.sales-plan-entry-grid label {
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+}
+
+.sales-plan-entry-grid input {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 9px 11px;
+}
+
+.sales-plan-note-box {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.sales-plan-note-box h4 {
+  margin: 0;
+}
+
+.sales-plan-note-list {
+  max-height: 160px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+}
+
+.sales-plan-note-list small {
+  color: #6b7280;
+}
+
+.sales-plan-note-list p {
+  margin: 2px 0 0;
+}
+
+.sales-plan-note-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.sales-plan-note-actions input {
+  flex: 1;
+}
+
+.sales-plan-entry-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+@media (max-width: 1280px) {
+  .sales-plan-columns-v2 {
+    grid-template-columns: 1fr;
+  }
+
+  .sales-plan-column-v2 .table-wrapper {
+    max-height: 40vh;
+  }
+}
+
+@media (max-width: 820px) {
+  .sales-plan-modal-v2 {
+    width: 96vw;
+    max-height: 92vh;
+    padding: 10px;
+  }
+
+  .sales-plan-target-box {
+    flex-direction: column;
+  }
+
+  .sales-plan-target-progress {
+    text-align: left;
+  }
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1324,7 +1611,7 @@ td {
 }
 
 .modal-card {
-  width: min(520px, calc(100% - 24px));
+  width: min(620px, calc(100% - 24px));
   background: #fff;
   border-radius: 20px;
   padding: 20px;
