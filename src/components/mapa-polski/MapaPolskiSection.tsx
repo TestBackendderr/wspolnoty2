@@ -305,7 +305,7 @@ export default function MapaPolskiSection({
           : linkedCoop?.caregiverId
             ? (() => {
                 const caregiver = db.caregivers.find((item) => item.id === linkedCoop.caregiverId);
-                return caregiver ? `${caregiver.name} ${caregiver.surname}`.trim() : null;
+                return caregiver ? caregiver.name.trim() : null;
               })()
             : null;
       const linkedAreasCount = linkedCoop?.areas?.length ?? 0;
