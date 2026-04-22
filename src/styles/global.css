@@ -1672,3 +1672,237 @@ td {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Cooperative details modal ─────────────────────────────────────────── */
+
+.coop-details-modal {
+  width: min(740px, calc(100% - 24px));
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.coop-details-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.coop-details-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.coop-details-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.coop-details-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.coop-details-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.coop-details-value {
+  font-size: 14px;
+  color: #111827;
+  font-weight: 500;
+}
+
+.coop-details-link {
+  font-size: 14px;
+  font-weight: 500;
+  color: #6d28d9;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.coop-details-link:hover {
+  text-decoration: underline;
+}
+
+/* status badge */
+.coop-details-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.coop-details-status--aktywna {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.coop-details-status--planowana {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.coop-details-status--zawieszona {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.coop-details-status--w-trakcie-tworzenia {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.coop-details-status--aktywny {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.coop-details-status--nieaktywny {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* power cards */
+.coop-details-power-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.coop-details-power-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.coop-details-power-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.1;
+}
+
+.coop-details-power-value small {
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+/* sections */
+.coop-details-section {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.coop-details-section-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6d28d9;
+}
+
+.coop-details-empty {
+  margin: 0;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+/* tag list (areas) */
+.coop-details-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.coop-details-tag {
+  display: inline-flex;
+  flex-direction: column;
+  background: #ede9fe;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4c1d95;
+  line-height: 1.3;
+}
+
+.coop-details-tag em {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 400;
+  color: #7c3aed;
+}
+
+/* members list */
+.coop-details-members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.coop-details-member-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.coop-details-member-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #6d28d9;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+/* meta footer */
+.coop-details-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-top: 4px;
+  border-top: 1px solid #f3f4f6;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.coop-details-meta strong {
+  color: #6b7280;
+}
+
+@media (max-width: 560px) {
+  .coop-details-grid-2,
+  .coop-details-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}

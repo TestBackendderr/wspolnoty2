@@ -25,6 +25,33 @@ type CreateMember = {
   status: 'aktywny' | 'nieaktywny';
 };
 
+type CooperativeCreateFormValues = {
+  name: string;
+  address: string;
+  voivodeship: string;
+  plannedPower: string;
+  installedPower: string;
+  registrationDate: string;
+  caregiverId: string;
+  boardName: string;
+  boardEmail: string;
+  boardPhone: string;
+};
+
+type CooperativeEditFormValues = {
+  name: string;
+  address: string;
+  voivodeship: string;
+  plannedPower: string;
+  installedPower: string;
+  registrationDate: string;
+  caregiverId: string;
+  boardName: string;
+  boardEmail: string;
+  boardPhone: string;
+  status: Cooperative['status'];
+};
+
 const STATUS_OPTIONS: { label: string; value: CooperativeApiStatus | '' }[] = [
   { label: 'Wszystkie statusy', value: '' },
   { label: 'Aktywna', value: 'ACTIVE' },
@@ -75,18 +102,18 @@ export default function SpoldzielnieSection({
 
   // ── edit modal state ──────────────────────────────────────────────────────
   const [editing, setEditing] = useState<Cooperative | null>(null);
-  const [editValues, setEditValues] = useState({
+  const [editValues, setEditValues] = useState<CooperativeEditFormValues>({
     name: '',
     address: '',
     voivodeship: VOIVODESHIPS[0] ?? '',
     plannedPower: '0',
     installedPower: '0',
+    registrationDate: '',
     caregiverId: '',
     boardName: '',
     boardEmail: '',
     boardPhone: '',
     status: 'planowana' as Cooperative['status'],
-    createdAt: new Date().toISOString().slice(0, 10),
   });
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -103,24 +130,24 @@ export default function SpoldzielnieSection({
   const [memberStatus, setMemberStatus] = useState<'aktywny' | 'nieaktywny'>('aktywny');
   const [editingMemberId, setEditingMemberId] = useState<number | null>(null);
   const [allUsers, setAllUsers] = useState<Array<{ id: number; name: string }>>([]);
-  const [createValues, setCreateValues] = useState({
+  const [createValues, setCreateValues] = useState<CooperativeCreateFormValues>({
     name: '',
     address: '',
     voivodeship: VOIVODESHIPS[0] ?? '',
     plannedPower: '0',
     installedPower: '0',
+    registrationDate: new Date().toISOString().slice(0, 10),
     caregiverId: '',
     boardName: '',
     boardEmail: '',
     boardPhone: '',
-    status: 'planowana' as Cooperative['status'],
-    createdAt: new Date().toISOString().slice(0, 10),
   });
 
   // ── history modal state ───────────────────────────────────────────────────
   const [historyCoopName, setHistoryCoopName] = useState('');
   const [historyItems, setHistoryItems] = useState<CooperativeHistoryItem[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [detailsCoop, setDetailsCoop] = useState<Cooperative | null>(null);
 
   const fetchCooperatives = useCallback(async () => {
     if (!selfFetch) return;
@@ -164,11 +191,34 @@ export default function SpoldzielnieSection({
 
     setActionError('');
     try {
+      const areaIds = String(values['coop-area-ids'] ?? '')
+        .split(',')
+        .map((id) => Number(id.trim()))
+        .filter((id) => Number.isInteger(id) && id > 0);
+      const membersRaw = String(values['coop-members'] ?? '[]');
+      const parsedMembers = JSON.parse(membersRaw) as CreateMember[];
+      const supervisorId = Number(values['coop-caregiver-id'] ?? 0);
+      const registrationDate = (values['coop-registration-date'] ?? '').trim();
+
+      const memberDtos = parsedMembers
+        .filter((m) => Number.isInteger(m.userId) && m.userId > 0)
+        .map((m) => ({ userId: m.userId, status: m.status === 'aktywny' ? 'AKTYWNY' : 'NIEAKTYWNY' }));
+
+      const installedPowerVal = Number(values['coop-installed-power'] ?? 0);
+
       const created = await createCooperative({
         name,
         address: (values['coop-address'] ?? '').trim(),
-        region: (values['coop-voivodeship'] ?? '').trim() || 'nieokreslone',
+        region: (values['coop-voivodeship'] ?? '').trim() || 'nieokreślone',
         ratedPower: Number(values['coop-planned-power'] ?? 0) || 0,
+        ...(installedPowerVal > 0 ? { installedPower: installedPowerVal } : {}),
+        boardName: (values['coop-board-name'] ?? '').trim(),
+        boardEmail: (values['coop-board-email'] ?? '').trim(),
+        boardPhone: (values['coop-board-phone'] ?? '').trim(),
+        supervisorId,
+        registrationDate,
+        ...(areaIds.length > 0 ? { areaIds } : {}),
+        ...(memberDtos.length > 0 ? { members: memberDtos } : {}),
       });
       setPage(1);
       await fetchCooperatives();
@@ -212,12 +262,11 @@ export default function SpoldzielnieSection({
       voivodeship: VOIVODESHIPS[0] ?? '',
       plannedPower: '0',
       installedPower: '0',
+      registrationDate: new Date().toISOString().slice(0, 10),
       caregiverId: '',
       boardName: '',
       boardEmail: '',
       boardPhone: '',
-      status: 'planowana',
-      createdAt: new Date().toISOString().slice(0, 10),
     });
   };
 
@@ -228,7 +277,16 @@ export default function SpoldzielnieSection({
 
   const submitCreate = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!createValues.name.trim()) return;
+    if (
+      !createValues.name.trim()
+      || !createValues.address.trim()
+      || !createValues.boardName.trim()
+      || !createValues.boardEmail.trim()
+      || !createValues.boardPhone.trim()
+      || !createValues.caregiverId
+    ) {
+      return;
+    }
     const values: AddEntryValues = {
       'coop-name': createValues.name,
       'coop-address': createValues.address,
@@ -239,8 +297,7 @@ export default function SpoldzielnieSection({
       'coop-board-name': createValues.boardName,
       'coop-board-email': createValues.boardEmail,
       'coop-board-phone': createValues.boardPhone,
-      'coop-status': createValues.status,
-      'coop-created-at': createValues.createdAt,
+      'coop-registration-date': createValues.registrationDate,
       'coop-area-ids': selectedAreaIds.join(','),
       'coop-members': JSON.stringify(createMembers),
     };
@@ -260,7 +317,7 @@ export default function SpoldzielnieSection({
             },
             members: createMembers,
             areaIds: selectedAreaIds,
-            createdAt: createValues.createdAt,
+            registrationDate: createValues.registrationDate,
           };
           localStorage.setItem('coop_creation_details_v1', JSON.stringify(existing));
           navigate(`/mapa?linkCoop=${createdId}`);
@@ -352,12 +409,14 @@ export default function SpoldzielnieSection({
       voivodeship: coop.voivodeship,
       plannedPower: String(coop.plannedPower ?? 0),
       installedPower: String(coop.installedPower ?? 0),
+      registrationDate: coop.registrationDate
+        ? coop.registrationDate.slice(0, 10)
+        : '',
       caregiverId: coop.caregiverId ? String(coop.caregiverId) : '',
-      boardName: '',
-      boardEmail: '',
-      boardPhone: '',
+      boardName: coop.boardName ?? '',
+      boardEmail: coop.boardEmail ?? '',
+      boardPhone: coop.boardPhone ?? '',
       status: coop.status,
-      createdAt: new Date().toISOString().slice(0, 10),
     });
     setEditSelectedAreaIds([]);
     setEditMembers(
@@ -365,7 +424,7 @@ export default function SpoldzielnieSection({
         id: m.id,
         userId: m.id,
         fullName: m.fullName,
-        status: m.status === 'aktywna' ? 'aktywny' : 'nieaktywny',
+        status: m.status === 'aktywny' ? 'aktywny' : 'nieaktywny',
       })),
     );
     setActionError('');
@@ -407,6 +466,21 @@ export default function SpoldzielnieSection({
     if (resolvedStatus !== editing.status) patch.status = mapStatusToApi(resolvedStatus);
     if (resolvedPlanned !== editing.plannedPower) patch.ratedPower = resolvedPlanned;
     if (resolvedInstalled !== editing.installedPower) patch.installedPower = resolvedInstalled;
+    if (editValues.boardName.trim() && editValues.boardName.trim() !== (editing.boardName ?? ''))
+      patch.boardName = editValues.boardName.trim();
+    if (editValues.boardEmail.trim() && editValues.boardEmail.trim() !== (editing.boardEmail ?? ''))
+      patch.boardEmail = editValues.boardEmail.trim();
+    if (editValues.boardPhone.trim() && editValues.boardPhone.trim() !== (editing.boardPhone ?? ''))
+      patch.boardPhone = editValues.boardPhone.trim();
+    if (editValues.registrationDate.trim())
+      patch.registrationDate = editValues.registrationDate.trim();
+    if (editMembers.length > 0) {
+      patch.members = editMembers.map((m) => ({
+        userId: m.userId,
+        status: m.status === 'aktywny' ? 'AKTYWNY' : 'NIEAKTYWNY',
+      }));
+    }
+    if (editSelectedAreaIds.length > 0) patch.areaIds = editSelectedAreaIds;
 
     if (Object.keys(patch).length === 0) {
       closeEdit();
@@ -453,6 +527,8 @@ export default function SpoldzielnieSection({
   };
 
   const closeHistory = () => setHistoryOpen(false);
+  const openDetails = (coop: Cooperative) => setDetailsCoop(coop);
+  const closeDetails = () => setDetailsCoop(null);
 
   const canEdit = selfFetch || Boolean(onUpdateCooperativeProp);
 
@@ -518,11 +594,11 @@ export default function SpoldzielnieSection({
     <>
       <button className="add-entity-btn" onClick={() => setCreateOpen(true)} type="button">
         <span>+</span>
-        <span>Nowa spoldzielnia</span>
+        <span>Nowa spółdzielnia</span>
       </button>
 
       <section className="panel">
-        <h3>Spoldzielnie energetyczne</h3>
+        <h3>Spółdzielnie energetyczne</h3>
 
         {actionError ? <p className="email-warning" style={{ marginBottom: '0.75rem' }}>{actionError}</p> : null}
 
@@ -538,6 +614,7 @@ export default function SpoldzielnieSection({
               cooperatives={cooperatives}
               onEditCooperative={canEdit ? openEdit : undefined}
               onViewHistory={selfFetch ? openHistory : undefined}
+              onViewDetails={openDetails}
             />
             {pagination}
           </>
@@ -548,7 +625,7 @@ export default function SpoldzielnieSection({
       {createOpen ? (
         <div className="modal-backdrop" onClick={closeCreate}>
           <div className="modal-card coop-create-modal" onClick={(event) => event.stopPropagation()}>
-            <h3>Nowa spoldzielnia energetyczna</h3>
+            <h3>Nowa spółdzielnia energetyczna</h3>
             <form className="add-entry-form coop-create-form" onSubmit={submitCreate}>
               <input
                 id="coop-name"
@@ -556,7 +633,7 @@ export default function SpoldzielnieSection({
                 value={createValues.name}
                 onChange={(e) => setCreateValues((prev) => ({ ...prev, name: e.target.value }))}
                 required
-                placeholder="Nazwa spoldzielni"
+                placeholder="Nazwa spółdzielni"
                 className="coop-create-name-input"
               />
 
@@ -572,7 +649,7 @@ export default function SpoldzielnieSection({
                   />
                 </label>
                 <label htmlFor="coop-voivodeship">
-                  Wojewodztwo
+                  Województwo
                   <select
                     id="coop-voivodeship"
                     name="coop-voivodeship"
@@ -589,14 +666,16 @@ export default function SpoldzielnieSection({
 
               <div className="coop-create-grid-2">
                 <label htmlFor="coop-planned-power">
-                  Planowana moc (kWp)
+                  Moc planowana (kW)
                   <input
                     id="coop-planned-power"
                     name="coop-planned-power"
                     type="number"
                     step="0.1"
+                    min="0"
                     value={createValues.plannedPower}
                     onChange={(e) => setCreateValues((prev) => ({ ...prev, plannedPower: e.target.value }))}
+                    required
                   />
                 </label>
                 <label htmlFor="coop-installed-power">
@@ -606,11 +685,24 @@ export default function SpoldzielnieSection({
                     name="coop-installed-power"
                     type="number"
                     step="0.1"
+                    min="0"
                     value={createValues.installedPower}
                     onChange={(e) => setCreateValues((prev) => ({ ...prev, installedPower: e.target.value }))}
                   />
                 </label>
               </div>
+
+              <label htmlFor="coop-registration-date">
+                Data rejestracji spółdzielni
+                <input
+                  id="coop-registration-date"
+                  name="coop-registration-date"
+                  type="date"
+                  value={createValues.registrationDate}
+                  onChange={(e) => setCreateValues((prev) => ({ ...prev, registrationDate: e.target.value }))}
+                  required
+                />
+              </label>
 
               <label htmlFor="coop-caregiver-id">
                 Opiekun
@@ -620,6 +712,7 @@ export default function SpoldzielnieSection({
                   className="add-entry-select"
                   value={createValues.caregiverId}
                   onChange={(e) => setCreateValues((prev) => ({ ...prev, caregiverId: e.target.value }))}
+                  required
                 >
                   <option value="">— wybierz opiekuna —</option>
                   {caregivers.map((c) => (
@@ -629,10 +722,10 @@ export default function SpoldzielnieSection({
               </label>
 
               <div>
-                <label>Tereny dzialania</label>
+                <label>Tereny działania</label>
                 <div className="coop-create-areas">
                   {areas.length === 0 ? (
-                    <span className="coop-create-empty-areas">Brak terenow</span>
+                    <span className="coop-create-empty-areas">Brak terenów</span>
                   ) : (
                     areas.map((area) => (
                       <label key={area.id} className="coop-create-area-item" htmlFor={`area-${area.id}`}>
@@ -654,15 +747,16 @@ export default function SpoldzielnieSection({
               </div>
 
               <div className="coop-create-board">
-                <p>Zarzad</p>
+                <p>Zarząd</p>
                 <div className="coop-create-grid-3">
                   <label htmlFor="coop-board-name">
-                    Imie i nazwisko
+                    Imię i nazwisko
                     <input
                       id="coop-board-name"
                       name="coop-board-name"
                       value={createValues.boardName}
                       onChange={(e) => setCreateValues((prev) => ({ ...prev, boardName: e.target.value }))}
+                      required
                     />
                   </label>
                   <label htmlFor="coop-board-email">
@@ -673,6 +767,7 @@ export default function SpoldzielnieSection({
                       type="email"
                       value={createValues.boardEmail}
                       onChange={(e) => setCreateValues((prev) => ({ ...prev, boardEmail: e.target.value }))}
+                      required
                     />
                   </label>
                   <label htmlFor="coop-board-phone">
@@ -682,20 +777,21 @@ export default function SpoldzielnieSection({
                       name="coop-board-phone"
                       value={createValues.boardPhone}
                       onChange={(e) => setCreateValues((prev) => ({ ...prev, boardPhone: e.target.value }))}
+                      required
                     />
                   </label>
                 </div>
               </div>
 
               <div className="coop-create-members-head">
-                <p>Czlonkowie ({createMembers.length})</p>
+                <p>Członkowie ({createMembers.length})</p>
                 <button className="primary-btn" type="button" onClick={openMembersModalForCreate}>
-                  + Dodaj / edytuj czlonkow
+                  + Dodaj / edytuj członków
                 </button>
               </div>
               {createMembers.length === 0 ? (
                 <p className="coop-create-members-empty">
-                  Brak czlonkow - dodaj pierwszego przyciskiem powyzej
+                  Brak członków - dodaj pierwszego przyciskiem powyżej
                 </p>
               ) : (
                 <div className="coop-create-members-list">
@@ -710,7 +806,7 @@ export default function SpoldzielnieSection({
                           Edytuj
                         </button>
                         <button type="button" className="table-action-btn danger" onClick={() => { setMemberMode('create'); deleteMember(member.id); }}>
-                          Usun
+                          Usuń
                         </button>
                       </div>
                     </div>
@@ -718,39 +814,12 @@ export default function SpoldzielnieSection({
                 </div>
               )}
 
-              <label htmlFor="coop-status">
-                Status
-                <select
-                  id="coop-status"
-                  name="coop-status"
-                  className="add-entry-select"
-                  value={createValues.status}
-                  onChange={(e) => setCreateValues((prev) => ({ ...prev, status: e.target.value as Cooperative['status'] }))}
-                >
-                  <option value="planowana">Planowana</option>
-                  <option value="w trakcie tworzenia">W trakcie tworzenia</option>
-                  <option value="aktywna">Aktywna</option>
-                  <option value="zawieszona">Zawieszona</option>
-                </select>
-              </label>
-
-              <label htmlFor="coop-created-at">
-                Data utworzenia spoldzielni
-                <input
-                  id="coop-created-at"
-                  name="coop-created-at"
-                  type="date"
-                  value={createValues.createdAt}
-                  onChange={(e) => setCreateValues((prev) => ({ ...prev, createdAt: e.target.value }))}
-                />
-              </label>
-
               <div className="add-entry-actions coop-create-actions">
                 <button className="primary-outline-btn" onClick={closeCreate} type="button">
                   Anuluj
                 </button>
                 <button className="primary-btn" type="submit" disabled={createSaving}>
-                  {createSaving ? 'Zapisywanie...' : 'Zapisz spoldzielnie'}
+                  {createSaving ? 'Zapisywanie...' : 'Zapisz spółdzielnię'}
                 </button>
               </div>
             </form>
@@ -761,13 +830,13 @@ export default function SpoldzielnieSection({
       {editing ? (
         <div className="modal-backdrop" onClick={closeEdit}>
           <div className="modal-card coop-create-modal" onClick={(event) => event.stopPropagation()}>
-            <h3>Edytuj spoldzielnie</h3>
+            <h3>Edytuj spółdzielnię</h3>
             <form className="add-entry-form coop-create-form" onSubmit={(e) => { e.preventDefault(); saveEdit(); }}>
               <input
                 value={editValues.name}
                 onChange={(e) => setEditValues((prev) => ({ ...prev, name: e.target.value }))}
                 required
-                placeholder="Nazwa spoldzielni"
+                placeholder="Nazwa spółdzielni"
                 className="coop-create-name-input"
               />
 
@@ -782,7 +851,7 @@ export default function SpoldzielnieSection({
                   />
                 </label>
                 <label htmlFor="edit-coop-voivodeship">
-                  Wojewodztwo
+                  Województwo
                   <select
                     id="edit-coop-voivodeship"
                     className="add-entry-select"
@@ -835,10 +904,10 @@ export default function SpoldzielnieSection({
               </label>
 
               <div>
-                <label>Tereny dzialania</label>
+                <label>Tereny działania</label>
                 <div className="coop-create-areas">
                   {areas.length === 0 ? (
-                    <span className="coop-create-empty-areas">Brak terenow</span>
+                    <span className="coop-create-empty-areas">Brak terenów</span>
                   ) : (
                     areas.map((area) => (
                       <label key={area.id} className="coop-create-area-item" htmlFor={`edit-area-${area.id}`}>
@@ -860,10 +929,10 @@ export default function SpoldzielnieSection({
               </div>
 
               <div className="coop-create-board">
-                <p>Zarzad</p>
+                <p>Zarząd</p>
                 <div className="coop-create-grid-3">
                   <label htmlFor="edit-board-name">
-                    Imie i nazwisko
+                    Imię i nazwisko
                     <input
                       id="edit-board-name"
                       value={editValues.boardName}
@@ -891,14 +960,14 @@ export default function SpoldzielnieSection({
               </div>
 
               <div className="coop-create-members-head">
-                <p>Czlonkowie ({editMembers.length})</p>
+                <p>Członkowie ({editMembers.length})</p>
                 <button className="primary-btn" type="button" onClick={openMembersModalForEditCoop}>
-                  + Dodaj / edytuj czlonkow
+                  + Dodaj / edytuj członków
                 </button>
               </div>
               {editMembers.length === 0 ? (
                 <p className="coop-create-members-empty">
-                  Brak czlonkow - dodaj pierwszego przyciskiem powyzej
+                  Brak członków - dodaj pierwszego przyciskiem powyżej
                 </p>
               ) : (
                 <div className="coop-create-members-list">
@@ -913,7 +982,7 @@ export default function SpoldzielnieSection({
                           Edytuj
                         </button>
                         <button type="button" className="table-action-btn danger" onClick={() => { setMemberMode('edit'); deleteMember(member.id); }}>
-                          Usun
+                          Usuń
                         </button>
                       </div>
                     </div>
@@ -936,13 +1005,13 @@ export default function SpoldzielnieSection({
                 </select>
               </label>
 
-              <label htmlFor="edit-coop-created-at">
-                Data utworzenia spoldzielni
+              <label htmlFor="edit-coop-registration-date">
+                Data rejestracji spółdzielni
                 <input
-                  id="edit-coop-created-at"
+                  id="edit-coop-registration-date"
                   type="date"
-                  value={editValues.createdAt}
-                  onChange={(e) => setEditValues((prev) => ({ ...prev, createdAt: e.target.value }))}
+                  value={editValues.registrationDate}
+                  onChange={(e) => setEditValues((prev) => ({ ...prev, registrationDate: e.target.value }))}
                 />
               </label>
 
@@ -952,13 +1021,13 @@ export default function SpoldzielnieSection({
                   onClick={() => handleDelete(editing.id)}
                   type="button"
                 >
-                  Usun
+                  Usuń
                 </button>
                 <button className="primary-outline-btn" onClick={closeEdit} type="button">
                   Anuluj
                 </button>
                 <button className="primary-btn" type="submit" disabled={saving}>
-                  {saving ? 'Zapisuję...' : 'Zapisz spoldzielnie'}
+                  {saving ? 'Zapisuję...' : 'Zapisz spółdzielnię'}
                 </button>
               </div>
             </form>
@@ -969,10 +1038,10 @@ export default function SpoldzielnieSection({
       {memberModalOpen ? (
         <div className="modal-backdrop" onClick={() => setMemberModalOpen(false)}>
           <div className="modal-card" onClick={(event) => event.stopPropagation()}>
-            <h3>{editingMemberId ? 'Edytuj czlonka' : 'Dodaj czlonka'}</h3>
+            <h3>{editingMemberId ? 'Edytuj członka' : 'Dodaj członka'}</h3>
             <form className="add-entry-form" onSubmit={saveMember}>
               <label htmlFor="member-user-id">
-                Uzytkownik
+                Użytkownik
                 <select
                   id="member-user-id"
                   className="add-entry-select"
@@ -980,7 +1049,7 @@ export default function SpoldzielnieSection({
                   onChange={(e) => setMemberUserId(e.target.value)}
                   required
                 >
-                  <option value="">— wybierz uzytkownika —</option>
+                  <option value="">— wybierz użytkownika —</option>
                   {allUsers.map((user) => (
                     <option key={user.id} value={user.id}>
                       {user.name}
@@ -1009,6 +1078,167 @@ export default function SpoldzielnieSection({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {detailsCoop ? (
+        <div className="modal-backdrop" onClick={closeDetails}>
+          <div
+            className="modal-card coop-details-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {/* header */}
+            <div className="coop-history-header">
+              <div>
+                <p className="coop-history-label">Szczegóły spółdzielni</p>
+                <h3 className="coop-history-title">{detailsCoop.name}</h3>
+              </div>
+              <button className="coop-history-close" onClick={closeDetails} type="button" aria-label="Zamknij">
+                ×
+              </button>
+            </div>
+
+            {/* body */}
+            <div className="coop-history-body coop-details-body">
+
+              {/* row 1: address + region + status */}
+              <div className="coop-details-grid-3">
+                <div className="coop-details-field">
+                  <span className="coop-details-label">Adres</span>
+                  <span className="coop-details-value">{detailsCoop.address || '—'}</span>
+                </div>
+                <div className="coop-details-field">
+                  <span className="coop-details-label">Region</span>
+                  <span className="coop-details-value">{detailsCoop.voivodeship || '—'}</span>
+                </div>
+                <div className="coop-details-field">
+                  <span className="coop-details-label">Status</span>
+                  <span className={`coop-details-status-badge coop-details-status--${detailsCoop.status.replace(/\s+/g, '-')}`}>
+                    {detailsCoop.status}
+                  </span>
+                </div>
+              </div>
+
+              {/* row 2: powers */}
+              <div className="coop-details-grid-2">
+                <div className="coop-details-power-card">
+                  <span className="coop-details-power-label">Moc planowana</span>
+                  <span className="coop-details-power-value">{detailsCoop.plannedPower} <small>kWp</small></span>
+                </div>
+                <div className="coop-details-power-card">
+                  <span className="coop-details-power-label">Moc zainstalowana</span>
+                  <span className="coop-details-power-value">
+                    {detailsCoop.installedPower > 0 ? <>{detailsCoop.installedPower} <small>kWp</small></> : '—'}
+                  </span>
+                </div>
+              </div>
+
+              {/* section: zarząd */}
+              <div className="coop-details-section">
+                <p className="coop-details-section-title">Zarząd</p>
+                <div className="coop-details-grid-3">
+                  <div className="coop-details-field">
+                    <span className="coop-details-label">Imię i nazwisko</span>
+                    <span className="coop-details-value">{detailsCoop.boardName || '—'}</span>
+                  </div>
+                  <div className="coop-details-field">
+                    <span className="coop-details-label">E-mail</span>
+                    {detailsCoop.boardEmail
+                      ? <a className="coop-details-link" href={`mailto:${detailsCoop.boardEmail}`}>{detailsCoop.boardEmail}</a>
+                      : <span className="coop-details-value">—</span>}
+                  </div>
+                  <div className="coop-details-field">
+                    <span className="coop-details-label">Telefon</span>
+                    {detailsCoop.boardPhone
+                      ? <a className="coop-details-link" href={`tel:${detailsCoop.boardPhone}`}>{detailsCoop.boardPhone}</a>
+                      : <span className="coop-details-value">—</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* section: opiekun */}
+              <div className="coop-details-section">
+                <p className="coop-details-section-title">Opiekun</p>
+                {detailsCoop.supervisor ? (
+                  <div className="coop-details-grid-3">
+                    <div className="coop-details-field">
+                      <span className="coop-details-label">Imię i nazwisko</span>
+                      <span className="coop-details-value">{detailsCoop.supervisor.name} {detailsCoop.supervisor.surname}</span>
+                    </div>
+                    <div className="coop-details-field">
+                      <span className="coop-details-label">E-mail</span>
+                      <a className="coop-details-link" href={`mailto:${detailsCoop.supervisor.email}`}>{detailsCoop.supervisor.email}</a>
+                    </div>
+                    <div className="coop-details-field">
+                      <span className="coop-details-label">Telefon</span>
+                      <a className="coop-details-link" href={`tel:${detailsCoop.supervisor.phoneNumber}`}>{detailsCoop.supervisor.phoneNumber}</a>
+                    </div>
+                  </div>
+                ) : <p className="coop-details-empty">Brak opiekuna.</p>}
+              </div>
+
+              {/* section: obszary + czlonkowie side by side */}
+              <div className="coop-details-grid-2">
+                <div className="coop-details-section">
+                  <p className="coop-details-section-title">Obszary ({detailsCoop.areas?.length ?? 0})</p>
+                  {detailsCoop.areas && detailsCoop.areas.length > 0 ? (
+                    <div className="coop-details-tag-list">
+                      {detailsCoop.areas.map((area) => (
+                        <span key={area.id} className="coop-details-tag">
+                          {area.name}
+                          <em>{area.region}</em>
+                        </span>
+                      ))}
+                    </div>
+                  ) : <p className="coop-details-empty">Brak obszarów.</p>}
+                </div>
+
+                <div className="coop-details-section">
+                  <p className="coop-details-section-title">Członkowie ({detailsCoop.members.length})</p>
+                  {detailsCoop.members.length > 0 ? (
+                    <div className="coop-details-members-list">
+                      {detailsCoop.members.map((member) => (
+                        <div key={member.id} className="coop-details-member-row">
+                          <span className="coop-details-member-avatar">
+                            {member.fullName.charAt(0).toUpperCase()}
+                          </span>
+                          <span className="coop-details-value">{member.fullName}</span>
+                          <span className={`coop-details-status-badge coop-details-status--${member.status.replace(/\s+/g, '-')}`}>
+                            {member.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="coop-details-empty">Brak członków.</p>}
+                </div>
+              </div>
+
+              {/* footer: meta */}
+              <div className="coop-details-meta">
+                {detailsCoop.createdBy && (
+                  <span>
+                    Utworzył: <strong>{detailsCoop.createdBy.name} {detailsCoop.createdBy.surname}</strong>
+                  </span>
+                )}
+                {detailsCoop.registrationDate && (
+                  <span>
+                    Data rejestracji: <strong>{new Date(detailsCoop.registrationDate).toLocaleDateString('pl-PL', { day: '2-digit', month: 'short', year: 'numeric' })}</strong>
+                  </span>
+                )}
+                {detailsCoop.createdAt && (
+                  <span>
+                    Dodano: <strong>{new Date(detailsCoop.createdAt).toLocaleDateString('pl-PL', { day: '2-digit', month: 'short', year: 'numeric' })}</strong>
+                  </span>
+                )}
+                {detailsCoop.updatedAt && detailsCoop.updatedAt !== detailsCoop.createdAt && (
+                  <span>
+                    Edytowano: <strong>{new Date(detailsCoop.updatedAt).toLocaleDateString('pl-PL', { day: '2-digit', month: 'short', year: 'numeric' })}</strong>
+                  </span>
+                )}
+              </div>
+
+            </div>
           </div>
         </div>
       ) : null}

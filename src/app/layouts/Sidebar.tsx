@@ -16,22 +16,22 @@ const roleLabel: Record<UserRole, string> = {
 };
 
 const caregiverNav: NavItem[] = [
-  { to: '/dashboard', label: 'Dashboard', iconClass: 'fa-solid fa-chart-pie' },
+  { to: '/dashboard', label: 'Pulpit', iconClass: 'fa-solid fa-chart-pie' },
   { to: '/tereny', label: 'Tereny', iconClass: 'fa-solid fa-map-marker-alt' },
-  { to: '/my-cooperatives', label: 'Moje spoldzielnie', iconClass: 'fa-solid fa-bolt' },
-  { to: '/my-plan', label: 'Moj plan sprzedazy', iconClass: 'fa-solid fa-chart-line' },
+  { to: '/my-cooperatives', label: 'Moje spółdzielnie', iconClass: 'fa-solid fa-bolt' },
+  { to: '/my-plan', label: 'Mój plan sprzedaży', iconClass: 'fa-solid fa-chart-line' },
   { to: '/calculator', label: 'Kalkulator PV + Magazyn', iconClass: 'fa-solid fa-calculator' },
 ];
 
 const adminNav: NavItem[] = [
-  { to: '/dashboard', label: 'Dashboard', iconClass: 'fa-solid fa-chart-pie' },
+  { to: '/dashboard', label: 'Pulpit', iconClass: 'fa-solid fa-chart-pie' },
   { to: '/opiekunowie', label: 'Opiekunowie', iconClass: 'fa-solid fa-user' },
   { to: '/tereny', label: 'Tereny', iconClass: 'fa-solid fa-map-marker-alt' },
-  { to: '/spoldzielnie', label: 'Spoldzielnie', iconClass: 'fa-solid fa-bolt' },
+  { to: '/spoldzielnie', label: 'Spółdzielnie', iconClass: 'fa-solid fa-bolt' },
   { to: '/mapa', label: 'Mapa Polski', iconClass: 'fa-solid fa-map' },
-  { to: '/sales-plans', label: 'Plany sprzedazowe', iconClass: 'fa-solid fa-chart-line' },
+  { to: '/sales-plans', label: 'Plany sprzedażowe', iconClass: 'fa-solid fa-chart-line' },
   { to: '/calculator', label: 'Kalkulator PV + Magazyn', iconClass: 'fa-solid fa-calculator' },
-  { to: '/users-management', label: 'Zarzadzanie kontami', iconClass: 'fa-solid fa-users-cog' },
+  { to: '/users-management', label: 'Zarządzanie kontami', iconClass: 'fa-solid fa-users-cog' },
 ];
 
 interface SidebarProps {
@@ -57,8 +57,8 @@ export default function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
     <>
       <aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-brand">
-          <h1>Wspolnoty Energetyczne</h1>
-          <p>System zarzadzania</p>
+          <h1>Wspólnoty Energetyczne</h1>
+          <p>System zarządzania</p>
         </div>
 
         <nav className="sidebar-nav">

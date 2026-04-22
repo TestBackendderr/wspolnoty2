@@ -27,8 +27,8 @@ export default function LoginCard({
 
   return (
     <form className="auth-card" onSubmit={handleSubmit}>
-      <h1>Wspolnoty Energetyczne</h1>
-      <p>System zarzadzania</p>
+      <h1>Wspólnoty Energetyczne</h1>
+      <p>System zarządzania</p>
 
       <label htmlFor="email">Adres e-mail</label>
       <input
@@ -40,7 +40,7 @@ export default function LoginCard({
         required
       />
 
-      <label htmlFor="password">Haslo</label>
+      <label htmlFor="password">Hasło</label>
       <input
         id="password"
         name="password"
@@ -61,7 +61,7 @@ export default function LoginCard({
       {error ? <div className="form-error">{error}</div> : null}
 
       <button type="submit" className="primary-btn">
-        Zaloguj sie
+        Zaloguj się
       </button>
     </form>
   );

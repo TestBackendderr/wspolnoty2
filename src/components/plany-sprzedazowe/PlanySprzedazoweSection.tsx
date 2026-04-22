@@ -50,7 +50,7 @@ export default function PlanySprzedazoweSection({
   return (
     <section className="panel sales-plan-panel">
       <div className="sales-plan-header">
-        <h3>Plany sprzedazowe - {selectedQuarter}</h3>
+        <h3>Plany sprzedażowe - {selectedQuarter}</h3>
         <select
           className="sales-plan-quarter-select"
           value={selectedQuarter}
@@ -68,7 +68,7 @@ export default function PlanySprzedazoweSection({
           <thead>
             <tr>
               <th>Opiekun</th>
-              <th>Spoldzielnia</th>
+              <th>Spółdzielnia</th>
               <th>Cel (kWh)</th>
               <th>Zrealizowane (kWh)</th>
               <th>Realizacja</th>
@@ -88,7 +88,7 @@ export default function PlanySprzedazoweSection({
             ) : (
               <tr>
                 <td colSpan={5} className="empty-row">
-                  Brak planow sprzedazowych
+                  Brak planów sprzedażowych
                 </td>
               </tr>
             )}

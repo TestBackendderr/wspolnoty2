@@ -47,7 +47,7 @@ export default function RecoverPasswordCard({
       return;
     }
     setError('');
-    setInfo(`Kod zostal wyslany na ${email.trim()}.`);
+    setInfo(`Kod został wysłany na ${email.trim()}.`);
     setCodeDigits(['', '', '', '', '', '']);
     setResetToken('');
     setStep('code');
@@ -75,7 +75,7 @@ export default function RecoverPasswordCard({
     event.preventDefault();
     if (isSubmitting) return;
     if (joinedCode.length !== 6) {
-      setError('Wpisz pelny 6-cyfrowy kod.');
+      setError('Wpisz pełny 6-cyfrowy kod.');
       return;
     }
     setIsSubmitting(true);
@@ -95,16 +95,16 @@ export default function RecoverPasswordCard({
     event.preventDefault();
     if (isSubmitting) return;
     if (!newPassword || !confirmPassword) {
-      setError('Uzupelnij oba pola hasla.');
+      setError('Uzupełnij oba pola hasła.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('Hasla nie sa takie same.');
+      setError('Hasła nie są takie same.');
       return;
     }
 
     if (!resetToken) {
-      setError('Sesja resetowania wygasla. Popros o nowy kod.');
+      setError('Sesja resetowania wygasła. Poproś o nowy kod.');
       setStep('email');
       return;
     }
@@ -118,7 +118,7 @@ export default function RecoverPasswordCard({
     }
 
     setError('');
-    setInfo('Haslo zostalo zmienione. Za chwile nastapi powrot do logowania.');
+    setInfo('Hasło zostało zmienione. Za chwilę nastąpi powrót do logowania.');
     setStep('success');
     window.setTimeout(onBackToLogin, 1200);
   };
@@ -126,7 +126,7 @@ export default function RecoverPasswordCard({
   return (
     <div className="auth-card">
       <h1>Odzyskiwanie hasła</h1>
-      <p>Odzyskaj dostep do konta</p>
+      <p>Odzyskaj dostęp do konta</p>
 
       {step === 'email' ? (
         <form className="auth-inline-form" onSubmit={handleSendCode}>
@@ -139,7 +139,7 @@ export default function RecoverPasswordCard({
             required
           />
           <button className="primary-btn" type="submit">
-            {isSubmitting ? 'Wysylanie...' : 'Wyslij kod'}
+            {isSubmitting ? 'Wysyłanie...' : 'Wyślij kod'}
           </button>
         </form>
       ) : null}
@@ -171,7 +171,7 @@ export default function RecoverPasswordCard({
 
       {step === 'password' ? (
         <form className="auth-inline-form" onSubmit={handlePasswordSubmit}>
-          <label htmlFor="new-password">Nowe haslo</label>
+          <label htmlFor="new-password">Nowe hasło</label>
           <input
             id="new-password"
             type="password"
@@ -180,7 +180,7 @@ export default function RecoverPasswordCard({
             required
           />
 
-          <label htmlFor="confirm-new-password">Potwierdz nowe haslo</label>
+          <label htmlFor="confirm-new-password">Potwierdź nowe hasło</label>
           <input
             id="confirm-new-password"
             type="password"
@@ -190,7 +190,7 @@ export default function RecoverPasswordCard({
           />
 
           <button className="primary-btn" type="submit">
-            {isSubmitting ? 'Zapisywanie...' : 'Zmien haslo'}
+            {isSubmitting ? 'Zapisywanie...' : 'Zmień hasło'}
           </button>
         </form>
       ) : null}
@@ -199,7 +199,7 @@ export default function RecoverPasswordCard({
       {info ? <div className="form-success">{info}</div> : null}
 
       <button className="auth-link-btn" onClick={onBackToLogin} type="button">
-        Wroc do logowania
+        Wróć do logowania
       </button>
     </div>
   );

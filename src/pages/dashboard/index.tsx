@@ -18,7 +18,7 @@ export default function DashboardPage() {
         setError('');
       } catch {
         if (cancelled) return;
-        setError('Nie udalo sie pobrac danych dashboardu.');
+        setError('Nie udało się pobrać danych pulpitu.');
       } finally {
         if (!cancelled) setIsLoading(false);
       }

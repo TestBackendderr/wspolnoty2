@@ -48,21 +48,21 @@ interface FrontendCoopDetails {
 
 const VOIVODESHIPS: VoivodeshipPoint[] = [
   { id: 'mazowieckie', label: 'Mazowieckie', center: [52.25, 21.0] },
-  { id: 'malopolskie', label: 'Malopolskie', center: [49.85, 19.95] },
-  { id: 'slaskie', label: 'Slaskie', center: [50.3, 19.0] },
+  { id: 'malopolskie', label: 'Małopolskie', center: [49.85, 19.95] },
+  { id: 'slaskie', label: 'Śląskie', center: [50.3, 19.0] },
   { id: 'wielkopolskie', label: 'Wielkopolskie', center: [52.4, 17.0] },
-  { id: 'dolnoslaskie', label: 'Dolnoslaskie', center: [51.1, 16.2] },
+  { id: 'dolnoslaskie', label: 'Dolnośląskie', center: [51.1, 16.2] },
   { id: 'pomorskie', label: 'Pomorskie', center: [54.35, 18.65] },
   { id: 'zachodniopomorskie', label: 'Zachodniopomorskie', center: [53.45, 14.55] },
   { id: 'kujawsko-pomorskie', label: 'Kujawsko-Pomorskie', center: [53.0, 18.6] },
   { id: 'lubelskie', label: 'Lubelskie', center: [51.25, 22.55] },
   { id: 'lubuskie', label: 'Lubuskie', center: [52.25, 15.25] },
-  { id: 'lodzkie', label: 'Lodzkie', center: [51.8, 19.45] },
+  { id: 'lodzkie', label: 'Łódzkie', center: [51.8, 19.45] },
   { id: 'opolskie', label: 'Opolskie', center: [50.65, 17.95] },
   { id: 'podkarpackie', label: 'Podkarpackie', center: [50.05, 22.0] },
   { id: 'podlaskie', label: 'Podlaskie', center: [53.15, 23.15] },
-  { id: 'swietokrzyskie', label: 'Swietokrzyskie', center: [50.8, 20.7] },
-  { id: 'warminsko-mazurskie', label: 'Warminsko-Mazurskie', center: [53.8, 20.5] },
+  { id: 'swietokrzyskie', label: 'Świętokrzyskie', center: [50.8, 20.7] },
+  { id: 'warminsko-mazurskie', label: 'Warmińsko-Mazurskie', center: [53.8, 20.5] },
 ];
 
 function normalizeVoivodeship(value: string) {
@@ -223,7 +223,7 @@ export default function MapaPolskiSection({
       });
 
       marker.bindTooltip(
-        `<b>${voiv.label}</b><br>${caregiversCount} opiekunow<br>${cooperativesCount} spoldzielni`,
+        `<b>${voiv.label}</b><br>${caregiversCount} opiekunów<br>${cooperativesCount} spółdzielni`,
         { direction: 'top' },
       );
       marker.on('click', () => setSelectedVoivodeship(voiv.id));
@@ -349,7 +349,7 @@ export default function MapaPolskiSection({
     if (!pendingPoint) return;
     const pointName = pendingPointName.trim();
     if (!pointName) {
-      setCustomPointError('Nie dodano punktu: nazwa nie moze byc pusta.');
+      setCustomPointError('Nie dodano punktu: nazwa nie może być pusta.');
       return;
     }
 
@@ -376,8 +376,8 @@ export default function MapaPolskiSection({
       {isAddingPoint ? (
         <p className="map-point-help">
           {linkCoop
-            ? `Wybierz punkt na mapie dla spoldzielni: ${linkCoop.name}`
-            : 'Kliknij w wybrane miejsce na mapie, aby dodac punkt.'}
+            ? `Wybierz punkt na mapie dla spółdzielni: ${linkCoop.name}`
+            : 'Kliknij w wybrane miejsce na mapie, aby dodać punkt.'}
         </p>
       ) : null}
       {customPointError ? <p className="map-point-error">{customPointError}</p> : null}
@@ -434,7 +434,7 @@ export default function MapaPolskiSection({
               <div>
                 <div className="map-col-title">OPIEKUNOWIE</div>
                 <div>
-                  <strong>Glowny:</strong> {selectedLead?.name ?? 'Brak przypisania'}
+                  <strong>Główny:</strong> {selectedLead?.name ?? 'Brak przypisania'}
                 </div>
                 <div className="map-head-right" style={{ marginTop: 8, alignItems: 'flex-start' }}>
                   <select
@@ -442,7 +442,7 @@ export default function MapaPolskiSection({
                     value={leadDraft}
                     onChange={(event) => setLeadDraft(event.target.value)}
                   >
-                    <option value="">Brak glownego opiekuna</option>
+                    <option value="">Brak głównego opiekuna</option>
                     {db.caregivers.map((caregiver) => (
                       <option key={caregiver.id} value={caregiver.id}>
                         {caregiver.name}
@@ -457,17 +457,17 @@ export default function MapaPolskiSection({
                     }
                     type="button"
                   >
-                    Ustaw glownego
+                    Ustaw głównego
                   </button>
                 </div>
                 {selectedCaregivers.length ? (
                   selectedCaregivers.map((caregiver) => <div key={caregiver.id}>• {caregiver.name}</div>)
                 ) : (
-                  <span className="map-none-red">Brak opiekunow</span>
+                  <span className="map-none-red">Brak opiekunów</span>
                 )}
               </div>
               <div>
-                <div className="map-col-title">SPOLDZIELNIE</div>
+                <div className="map-col-title">SPÓŁDZIELNIE</div>
                 <div className="map-head-right" style={{ marginTop: 8, alignItems: 'flex-start' }}>
                   <select value={cooperativeDraft} onChange={(event) => setCooperativeDraft(event.target.value)}>
                     <option value="">Brak</option>
@@ -505,7 +505,7 @@ export default function MapaPolskiSection({
                           )
                         }
                       >
-                        usuń
+                        Usuń
                       </button>
                     </div>
                   ))
@@ -552,7 +552,7 @@ export default function MapaPolskiSection({
                           )
                         }
                       >
-                        usuń
+                        Usuń
                       </button>
                     </div>
                   ))
@@ -563,18 +563,18 @@ export default function MapaPolskiSection({
             </div>
             {selectedLinkedCoop ? (
               <div className="map-linked-coop-card">
-                <h5>Szczegoly spoldzielni z tworzenia</h5>
+                <h5>Szczegóły spółdzielni z tworzenia</h5>
                 <p><strong>Nazwa:</strong> {selectedLinkedCoop.name}</p>
                 <p><strong>Adres:</strong> {selectedLinkedCoop.address || '-'}</p>
-                <p><strong>Wojewodztwo:</strong> {selectedLinkedCoop.voivodeship || '-'}</p>
+                <p><strong>Województwo:</strong> {selectedLinkedCoop.voivodeship || '-'}</p>
                 <p><strong>Status:</strong> {selectedLinkedCoop.status}</p>
                 <p><strong>Moc planowana:</strong> {selectedLinkedCoop.plannedPower} kWp</p>
                 <p><strong>Moc zainstalowana:</strong> {selectedLinkedCoop.installedPower} kWp</p>
-                <p><strong>Zarzad:</strong> {selectedLinkedDetails?.board?.name || '-'}</p>
-                <p><strong>Email zarzadu:</strong> {selectedLinkedDetails?.board?.email || '-'}</p>
-                <p><strong>Telefon zarzadu:</strong> {selectedLinkedDetails?.board?.phone || '-'}</p>
+                <p><strong>Zarząd:</strong> {selectedLinkedDetails?.board?.name || '-'}</p>
+                <p><strong>E-mail zarządu:</strong> {selectedLinkedDetails?.board?.email || '-'}</p>
+                <p><strong>Telefon zarządu:</strong> {selectedLinkedDetails?.board?.phone || '-'}</p>
                 <p><strong>Data utworzenia:</strong> {selectedLinkedDetails?.createdAt || '-'}</p>
-                <p><strong>Czlonkowie:</strong> {selectedLinkedMembers.length}</p>
+                <p><strong>Członkowie:</strong> {selectedLinkedMembers.length}</p>
                 {selectedLinkedMembers.length ? (
                   <div>
                     {selectedLinkedMembers.map((member) => (

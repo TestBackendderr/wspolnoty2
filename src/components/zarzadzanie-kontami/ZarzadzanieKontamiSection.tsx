@@ -262,17 +262,17 @@ export default function ZarzadzanieKontamiSection() {
   return (
     <section className="panel">
       <div className="section-head-with-action">
-        <h3>Zarzadzanie kontami</h3>
+        <h3>Zarządzanie kontami</h3>
         <AddEntryModal
           buttonLabel="Dodaj nowe konto"
           modalTitle="Dodaj nowe konto"
           fields={[
-            { id: 'user-name', label: 'Imie', placeholder: 'Jan' },
+            { id: 'user-name', label: 'Imię', placeholder: 'Jan' },
             { id: 'user-surname', label: 'Nazwisko', placeholder: 'Kowalski' },
             { id: 'user-email', label: 'Email', type: 'email', placeholder: 'jan@example.com' },
             { id: 'user-phone', label: 'Telefon', placeholder: '+48 600 123 456' },
             { id: 'user-role', label: 'Rola', options: ['Admin', 'Opiekun'] },
-            { id: 'user-password', label: 'Haslo tymczasowe', placeholder: 'haslo123' },
+            { id: 'user-password', label: 'Hasło tymczasowe', placeholder: 'haslo123' },
           ]}
           open={addAccountModalOpen}
           onOpenChange={handleAddModalOpenChange}
@@ -294,7 +294,7 @@ export default function ZarzadzanieKontamiSection() {
             <table className="users-table">
               <thead>
                 <tr>
-                  <th>Imie</th>
+                  <th>Imię</th>
                   <th>Email</th>
                   <th>Numer</th>
                   <th>Status</th>
@@ -346,7 +346,7 @@ export default function ZarzadzanieKontamiSection() {
             <h3>Edytuj konto</h3>
             <div className="add-entry-form">
               <label htmlFor="edit-user-name">
-                Imie i nazwisko
+                Imię i nazwisko
                 <input id="edit-user-name" value={editName} onChange={(e) => setEditName(e.target.value)} />
               </label>
               <label htmlFor="edit-user-email">
@@ -363,25 +363,25 @@ export default function ZarzadzanieKontamiSection() {
                 <input id="edit-user-phone" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
               </label>
               <div className="account-password-section">
-                <strong>Zmien haslo (opcjonalnie)</strong>
+                <strong>Zmień hasło (opcjonalnie)</strong>
                 <label htmlFor="edit-user-password">
-                  Nowe haslo
+                  Nowe hasło
                   <input
                     id="edit-user-password"
                     type="password"
                     value={editNewPassword}
                     onChange={(e) => setEditNewPassword(e.target.value)}
-                    placeholder="Wpisz nowe haslo"
+                    placeholder="Wpisz nowe hasło"
                   />
                 </label>
                 <label htmlFor="edit-user-password-confirm">
-                  Powtorz nowe haslo
+                  Powtórz nowe hasło
                   <input
                     id="edit-user-password-confirm"
                     type="password"
                     value={editConfirmPassword}
                     onChange={(e) => setEditConfirmPassword(e.target.value)}
-                    placeholder="Powtorz nowe haslo"
+                    placeholder="Powtórz nowe hasło"
                   />
                 </label>
               </div>
@@ -398,7 +398,7 @@ export default function ZarzadzanieKontamiSection() {
                 </select>
               </label>
               <label htmlFor="edit-user-blocked">
-                Blokada
+                Blokowanie
                 <select
                   id="edit-user-blocked"
                   className="add-entry-select"
@@ -417,7 +417,7 @@ export default function ZarzadzanieKontamiSection() {
                 onClick={() => handleDeleteUser(editingUser.id)}
                 type="button"
               >
-                Usun
+                Usuń
               </button>
               <button className="primary-outline-btn" onClick={closeEdit} type="button">
                 Anuluj

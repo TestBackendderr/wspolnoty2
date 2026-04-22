@@ -23,7 +23,24 @@ export interface User {
 export interface CooperativeMember {
   id: number;
   fullName: string;
-  status: 'aktywna' | 'w trakcie tworzenia' | 'planowana' | 'zawieszona';
+  status: 'aktywny' | 'nieaktywny';
+}
+
+export interface CooperativeUserRef {
+  id: number;
+  name: string;
+  surname: string;
+}
+
+export interface CooperativeSupervisorRef extends CooperativeUserRef {
+  email: string;
+  phoneNumber: string;
+}
+
+export interface CooperativeAreaRef {
+  id: number;
+  name: string;
+  region: string;
 }
 
 export interface CooperativeHistoryItem {
@@ -45,6 +62,17 @@ export interface Cooperative {
   caregiverId: number | null;
   plannedPower: number;
   installedPower: number;
+  boardName?: string;
+  boardEmail?: string;
+  boardPhone?: string;
+  supervisorId?: number | null;
+  createdById?: number | null;
+  registrationDate?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: CooperativeUserRef;
+  supervisor?: CooperativeSupervisorRef;
+  areas?: CooperativeAreaRef[];
   members: CooperativeMember[];
   /** Filled when API returns it (e.g. list + detail). */
   history?: CooperativeHistoryItem[];

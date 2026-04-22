@@ -237,7 +237,7 @@ export default function OpiekunowieSection() {
               </label>
             </div>
             <p className="email-warning">
-              Uwaga: zmiana emaila zmienia login opiekuna. Przekaż opiekunowi nowy email, ponieważ
+              Uwaga: zmiana e-maila zmienia login opiekuna. Przekaż opiekunowi nowy e-mail, ponieważ
               stary przestanie działać.
             </p>
             <div className="add-entry-actions">

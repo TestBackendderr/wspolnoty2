@@ -1,5 +1,6 @@
 import { apiRequest } from '@/services/api';
 import type { Cooperative, CooperativeHistoryItem } from '@/types/domain';
+import { toApiRegion, toDisplayRegion } from '@/utils/regions';
 
 export type CooperativeApiStatus = 'ACTIVE' | 'IN_PROGRESS' | 'PLANNED' | 'PAUSED';
 
@@ -18,8 +19,33 @@ interface CooperativesApiItem {
   region: string;
   ratedPower: number;
   installedPower: number | null;
+  boardName?: string;
+  boardEmail?: string;
+  boardPhone?: string;
   status: CooperativeApiStatus;
+  supervisorId?: number;
+  createdById?: number;
   createdBy?: CooperativeCreatedBy;
+  supervisor?: {
+    id: number;
+    name: string;
+    surname: string;
+    email: string;
+    phoneNumber: string;
+  };
+  areas?: Array<{
+    id: number;
+    name: string;
+    region: string;
+  }>;
+  registrationDate?: string | null;
+  members?: Array<{
+    userId: number;
+    cooperativeId: number;
+    status: string;
+    createdAt: string;
+    user: { id: number; name: string; surname: string };
+  }>;
   createdAt?: string;
   updatedAt?: string;
   history?: CooperativeHistoryItem[];
@@ -33,11 +59,24 @@ interface PaginatedCooperativesResponse {
   totalPages: number;
 }
 
+interface CreateCooperativeMember {
+  userId: number;
+  status?: string;
+}
+
 interface CreateCooperativePayload {
   name: string;
   address: string;
   region: string;
   ratedPower: number;
+  installedPower?: number;
+  boardName: string;
+  boardEmail: string;
+  boardPhone: string;
+  supervisorId: number;
+  registrationDate: string;
+  areaIds?: number[];
+  members?: CreateCooperativeMember[];
 }
 
 interface UpdateCooperativePayload {
@@ -46,7 +85,14 @@ interface UpdateCooperativePayload {
   region?: string;
   ratedPower?: number;
   installedPower?: number;
+  boardName?: string;
+  boardEmail?: string;
+  boardPhone?: string;
+  supervisorId?: number;
+  registrationDate?: string;
   status?: CooperativeApiStatus;
+  areaIds?: number[];
+  members?: CreateCooperativeMember[];
 }
 
 export interface ListCooperativesParams {
@@ -106,12 +152,30 @@ function mapCooperativeFromApi(item: CooperativesApiItem): Cooperative {
     id: item.id,
     name: item.name,
     address: item.address,
-    voivodeship: item.region,
+    voivodeship: toDisplayRegion(item.region),
     status: mapStatusFromApi(item.status),
-    caregiverId: null,
+    caregiverId: item.supervisorId ?? null,
     plannedPower: item.ratedPower,
     installedPower: item.installedPower ?? 0,
-    members: [],
+    boardName: item.boardName,
+    boardEmail: item.boardEmail,
+    boardPhone: item.boardPhone,
+    supervisorId: item.supervisorId ?? null,
+    createdById: item.createdById ?? null,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    createdBy: item.createdBy,
+    supervisor: item.supervisor,
+    registrationDate: item.registrationDate ?? undefined,
+    areas: (item.areas ?? []).map((area) => ({
+      ...area,
+      region: toDisplayRegion(area.region),
+    })),
+    members: (item.members ?? []).map((member) => ({
+      id: member.userId,
+      fullName: `${member.user.name} ${member.user.surname}`.trim(),
+      status: member.status === 'AKTYWNY' ? 'aktywny' : 'nieaktywny',
+    })),
     history: item.history,
   };
 }
@@ -121,7 +185,7 @@ export async function listCooperatives(params: ListCooperativesParams = {}): Pro
   if (params.page !== undefined) query.set('page', String(params.page));
   if (params.limit !== undefined) query.set('limit', String(params.limit));
   if (params.status) query.set('status', params.status);
-  if (params.region) query.set('region', params.region);
+  if (params.region) query.set('region', toApiRegion(params.region));
   if (params.sortOrder) query.set('sortOrder', params.sortOrder);
 
   const qs = query.toString();
@@ -141,9 +205,13 @@ export async function getCooperativeById(id: number): Promise<Cooperative> {
 }
 
 export async function createCooperative(payload: CreateCooperativePayload): Promise<Cooperative> {
+  const body = {
+    ...payload,
+    region: toApiRegion(payload.region),
+  };
   const response = await apiRequest<CooperativesApiItem>('/cooperatives', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   return mapCooperativeFromApi(response);
 }
@@ -152,9 +220,10 @@ export async function updateCooperative(
   id: number,
   payload: UpdateCooperativePayload,
 ): Promise<Cooperative> {
+  const body = payload.region ? { ...payload, region: toApiRegion(payload.region) } : payload;
   const response = await apiRequest<CooperativesApiItem>(`/cooperatives/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   return mapCooperativeFromApi(response);
 }

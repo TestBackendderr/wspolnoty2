@@ -83,7 +83,7 @@ export default function TerenySection() {
       setTotalPages(result.totalPages);
       if (targetPage !== page) setPage(targetPage);
     } catch {
-      setError('Nie udalo sie pobrac terenow.');
+      setError('Nie udało się pobrać terenów.');
     } finally {
       setLoading(false);
     }
@@ -105,7 +105,7 @@ export default function TerenySection() {
         });
         setCaregivers(result.data);
       } catch {
-        setError('Nie udalo sie pobrac listy opiekunow.');
+        setError('Nie udało się pobrać listy opiekunów.');
       }
     })();
   }, [canManageAreas]);
@@ -138,7 +138,7 @@ export default function TerenySection() {
       setPage(1);
       setListVersion((v) => v + 1);
     } catch {
-      setError('Nie udalo sie dodac terenu.');
+      setError('Nie udało się dodać terenu.');
     } finally {
       setAddLoading(false);
     }
@@ -178,7 +178,7 @@ export default function TerenySection() {
       setError('');
       setEditId(null);
     } catch {
-      setError('Nie udalo sie zaktualizowac terenu.');
+      setError('Nie udało się zaktualizować terenu.');
     } finally {
       setEditLoading(false);
     }
@@ -186,13 +186,13 @@ export default function TerenySection() {
 
   const handleDelete = async (id: number) => {
     if (!canManageAreas) return;
-    if (!window.confirm('Czy na pewno chcesz usunac ten teren?')) return;
+    if (!window.confirm('Czy na pewno chcesz usunąć ten teren?')) return;
     try {
       await deleteArea(id);
       setError('');
       setListVersion((v) => v + 1);
     } catch {
-      setError('Nie udalo sie usunac terenu.');
+      setError('Nie udało się usunąć terenu.');
     }
   };
 
@@ -273,7 +273,7 @@ export default function TerenySection() {
             onClick={() => setPage((p) => p + 1)}
             type="button"
           >
-            Nastepna ›
+            Następna ›
           </button>
         </div>
       </div>
@@ -304,7 +304,7 @@ export default function TerenySection() {
       {filterBar}
 
       {loading ? (
-        <p style={{ padding: '1rem', color: '#9ca3af' }}>Ladowanie...</p>
+        <p style={{ padding: '1rem', color: '#9ca3af' }}>Ładowanie...</p>
       ) : (
         <>
           <div className="table-wrapper areas-table-wrap">
@@ -314,7 +314,7 @@ export default function TerenySection() {
                   <th>Typ</th>
                   <th>Nazwa</th>
                   <th>Kod pocztowy</th>
-                  <th>Wojewodztwo</th>
+                  <th>Województwo</th>
                   <th>Opiekun</th>
                   {canManageAreas ? <th>Akcje</th> : null}
                 </tr>
@@ -329,7 +329,7 @@ export default function TerenySection() {
                     <td>
                       {area.responsibleUser
                         ? `${area.responsibleUser.name} ${area.responsibleUser.surname}`
-                        : 'не назначен'}
+                        : 'nieprzypisany'}
                     </td>
                     {canManageAreas ? (
                       <td>
@@ -346,7 +346,7 @@ export default function TerenySection() {
                             onClick={() => void handleDelete(area.id)}
                             type="button"
                           >
-                            Usun
+                            Usuń
                           </button>
                         </div>
                       </td>
@@ -356,7 +356,7 @@ export default function TerenySection() {
                 {areas.length === 0 ? (
                   <tr>
                     <td colSpan={tableColSpan} className="empty-row">
-                      Brak terenow dla wybranych filtrow — dodaj pierwszy lub zmien
+                      Brak terenów dla wybranych filtrów — dodaj pierwszy lub zmień
                       filtry.
                     </td>
                   </tr>
@@ -417,7 +417,7 @@ export default function TerenySection() {
                 />
               </label>
               <label htmlFor="add-region">
-                Wojewodztwo
+                Województwo
                 <select
                   id="add-region"
                   value={addValues.voivodeship}
@@ -523,7 +523,7 @@ export default function TerenySection() {
                 />
               </label>
               <label htmlFor="edit-region">
-                Wojewodztwo
+                Województwo
                 <select
                   id="edit-region"
                   value={editValues.voivodeship}

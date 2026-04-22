@@ -4,17 +4,17 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/app/providers/authContext';
 
 const pageTitles: Record<string, string> = {
-  '/dashboard': 'Dashboard',
+  '/dashboard': 'Pulpit',
   '/opiekunowie': 'Opiekunowie',
   '/tereny': 'Tereny',
-  '/spoldzielnie': 'Spoldzielnie energetyczne',
+  '/spoldzielnie': 'Spółdzielnie energetyczne',
   '/mapa': 'Mapa Polski',
-  '/sales-plans': 'Plany sprzedazowe',
-  '/users-management': 'Zarzadzanie kontami',
+  '/sales-plans': 'Plany sprzedażowe',
+  '/users-management': 'Zarządzanie kontami',
   '/calculator': 'Kalkulator PV + Magazyn',
-  '/my-cooperatives': 'Moje spoldzielnie',
-  '/my-plan': 'Moj plan sprzedazy',
-  '/profil': 'Moj profil',
+  '/my-cooperatives': 'Moje spółdzielnie',
+  '/my-plan': 'Mój plan sprzedaży',
+  '/profil': 'Mój profil',
 };
 
 interface TopbarProps {
@@ -36,7 +36,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
       <header className="topbar">
         <div className="topbar-title-wrap">
           <button
-            aria-label="Otworz menu"
+            aria-label="Otwórz menu"
             className="icon-btn sidebar-toggle-btn"
             onClick={onToggleSidebar}
             type="button"
@@ -78,7 +78,7 @@ export default function Topbar({ onToggleSidebar }: TopbarProps) {
           >
             <h4>Powiadomienia</h4>
             {notifications.length === 0 ? (
-              <p>Brak powiadomien</p>
+              <p>Brak powiadomień</p>
             ) : (
               notifications.map((n) => (
                 <div key={n.id} className="notification-row">

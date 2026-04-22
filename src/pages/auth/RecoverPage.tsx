@@ -8,10 +8,10 @@ import {
 } from '@/services/auth';
 import { ApiError } from '@/services/api';
 
-const DEFAULT_REQUEST_ERROR = 'Nie udalo sie wyslac kodu. Sprobuj ponownie.';
-const INVALID_CODE_ERROR = 'Nieprawidlowy lub wygasly kod.';
-const INVALID_TOKEN_ERROR = 'Nieprawidlowy lub wygasly token resetu.';
-const DEFAULT_RESET_ERROR = 'Nie udalo sie zmienic hasla. Sprobuj ponownie.';
+const DEFAULT_REQUEST_ERROR = 'Nie udało się wysłać kodu. Spróbuj ponownie.';
+const INVALID_CODE_ERROR = 'Nieprawidłowy lub wygasły kod.';
+const INVALID_TOKEN_ERROR = 'Nieprawidłowy lub wygasły token resetu.';
+const DEFAULT_RESET_ERROR = 'Nie udało się zmienić hasła. Spróbuj ponownie.';
 
 export default function RecoverPage() {
   const navigate = useNavigate();

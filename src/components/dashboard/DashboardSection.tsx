@@ -12,7 +12,7 @@ export default function DashboardSection({ stats, isLoading, error }: DashboardS
   if (isLoading) {
     return (
       <section className="panel">
-        <p>Trwa ladowanie danych dashboardu...</p>
+        <p>Trwa ładowanie danych pulpitu...</p>
       </section>
     );
   }
@@ -28,7 +28,7 @@ export default function DashboardSection({ stats, isLoading, error }: DashboardS
   if (!stats) {
     return (
       <section className="panel">
-        <p className="empty-row">Brak danych dashboardu.</p>
+        <p className="empty-row">Brak danych pulpitu.</p>
       </section>
     );
   }
@@ -55,7 +55,7 @@ export default function DashboardSection({ stats, isLoading, error }: DashboardS
     <>
       <section className="dashboard-grid">
         <article className="dashboard-kpi-card">
-          <p>Spoldzielnie</p>
+          <p>Spółdzielnie</p>
           <strong>{stats.cooperatives}</strong>
         </article>
         <article className="dashboard-kpi-card">
@@ -67,17 +67,17 @@ export default function DashboardSection({ stats, isLoading, error }: DashboardS
           <strong>{stats.areas}</strong>
         </article>
         <article className="dashboard-kpi-card">
-          <p>Calkowita zainstalowana moc</p>
+          <p>Całkowita zainstalowana moc</p>
           <strong>{stats.totalInstalledPowerKW} kWp</strong>
         </article>
 
         <article className="dashboard-panel dashboard-members-panel">
-          <h3>Struktura wszystkich czlonkow w systemie</h3>
+          <h3>Struktura wszystkich członków w systemie</h3>
           <div className="members-donut-layout">
             <div className="members-donut" style={donutStyle}>
               <div className="members-donut-center">
                 <strong>{totalMembers}</strong>
-                <span>Czlonkowie</span>
+                <span>Członkowie</span>
               </div>
             </div>
             <div className="members-legend">
@@ -107,7 +107,7 @@ export default function DashboardSection({ stats, isLoading, error }: DashboardS
         </article>
 
         <article className="dashboard-panel dashboard-voivodeship-panel">
-          <h3>Liczba spoldzielni w wojewodztwach</h3>
+          <h3>Liczba spółdzielni w województwach</h3>
           {voivodeshipBars.length ? (
             <div className="voivodeship-bars">
               {voivodeshipBars.map((row) => (
@@ -130,7 +130,7 @@ export default function DashboardSection({ stats, isLoading, error }: DashboardS
       </section>
 
       <section className="panel">
-        <h3>Ostatnio dodane spoldzielnie</h3>
+        <h3>Ostatnio dodane spółdzielnie</h3>
         {latestCooperatives.length ? (
           <div className="latest-coops-grid">
             {latestCooperatives.map((coop) => (
@@ -147,12 +147,12 @@ export default function DashboardSection({ stats, isLoading, error }: DashboardS
             ))}
           </div>
         ) : (
-          <p className="empty-row">Brak spoldzielni energetycznych. Dodaj pierwsza w sekcji Spoldzielnie.</p>
+          <p className="empty-row">Brak spółdzielni energetycznych. Dodaj pierwszą w sekcji Spółdzielnie.</p>
         )}
       </section>
 
       <section className="panel">
-        <h3>Tabela spoldzielni</h3>
+        <h3>Tabela spółdzielni</h3>
         <CooperativesTable cooperatives={stats.recentCooperatives} />
       </section>
     </>

@@ -130,11 +130,41 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const name = (values['coop-name'] ?? '').trim();
     if (!name) return;
     try {
+      const boardName = (values['coop-board-name'] ?? '').trim();
+      const boardEmail = (values['coop-board-email'] ?? '').trim();
+      const boardPhone = (values['coop-board-phone'] ?? '').trim();
+      const supervisorId = Number(values['coop-caregiver-id'] ?? 0);
+      if (!boardName || !boardEmail || !boardPhone || !supervisorId) return;
+
+      const areaIds = String(values['coop-area-ids'] ?? '')
+        .split(',')
+        .map((id) => Number(id.trim()))
+        .filter((id) => Number.isInteger(id) && id > 0);
+      const membersRaw = String(values['coop-members'] ?? '[]');
+      const parsedMembers = JSON.parse(membersRaw) as Array<{ userId: number; status?: string }>;
+      const memberDtos = parsedMembers
+        .filter((m) => Number.isInteger(Number(m.userId)) && Number(m.userId) > 0)
+        .map((m) => ({
+          userId: Number(m.userId),
+          status: m.status === 'aktywny' ? 'AKTYWNY' : m.status === 'nieaktywny' ? 'NIEAKTYWNY' : 'AKTYWNY',
+        }));
+      const registrationDate = String(values['coop-registration-date'] ?? '').trim();
+
+      const installedPowerVal = Number(values['coop-installed-power'] ?? 0);
+
       const created = await createCooperative({
         name,
         address: (values['coop-address'] ?? '').trim(),
-        region: (values['coop-voivodeship'] ?? '').trim() || 'nieokreslone',
+        region: (values['coop-voivodeship'] ?? '').trim() || 'nieokreślone',
         ratedPower: Number(values['coop-planned-power'] ?? 0) || 0,
+        ...(installedPowerVal > 0 ? { installedPower: installedPowerVal } : {}),
+        boardName,
+        boardEmail,
+        boardPhone,
+        supervisorId,
+        registrationDate,
+        ...(areaIds.length > 0 ? { areaIds } : {}),
+        ...(memberDtos.length > 0 ? { members: memberDtos } : {}),
       });
       setDb((prev) => ({
         ...prev,
@@ -142,7 +172,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       }));
       setError('');
     } catch {
-      setError('Nie udalo sie dodac spoldzielni. Sprawdz uprawnienia i sesje.');
+      setError('Nie udało się dodać spółdzielni. Sprawdź uprawnienia i sesję.');
     }
   };
 
@@ -158,7 +188,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         }));
         setError('');
       } catch {
-        setError('Nie udalo sie usunac spoldzielni. Sprawdz uprawnienia (ADMIN).');
+        setError('Nie udało się usunąć spółdzielni. Sprawdź uprawnienia (ADMIN).');
       }
     })();
   };

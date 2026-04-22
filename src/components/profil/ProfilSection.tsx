@@ -24,17 +24,17 @@ export default function ProfilSection({ user, onSave }: ProfilSectionProps) {
       password,
     });
 
-    setMessage('Profil zostal zapisany.');
+    setMessage('Profil został zapisany.');
   };
 
   return (
     <section className="panel profile-panel">
-      <h3>Moj profil</h3>
-      <p className="profile-description">Tutaj mozesz samodzielnie zaktualizowac swoje dane konta.</p>
+      <h3>Mój profil</h3>
+      <p className="profile-description">Tutaj możesz samodzielnie zaktualizować swoje dane konta.</p>
 
       <form className="profile-form" onSubmit={handleSubmit}>
         <label>
-          Imie i nazwisko
+          Imię i nazwisko
           <input value={name} onChange={(event) => setName(event.target.value)} required />
         </label>
 
@@ -54,7 +54,7 @@ export default function ProfilSection({ user, onSave }: ProfilSectionProps) {
         </label>
 
         <label>
-          Haslo
+          Hasło
           <input
             value={password}
             onChange={(event) => setPassword(event.target.value)}

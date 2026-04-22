@@ -146,7 +146,7 @@ export default function KalkulatorPvMagazynSection() {
       const items = await listAllCalculationProfiles();
       setCalculationProfiles(items);
     } catch {
-      setProfilesError('Nie udalo sie pobrac zapisanych profili kalkulacji.');
+      setProfilesError('Nie udało się pobrać zapisanych profili kalkulacji.');
     } finally {
       setProfilesLoading(false);
     }
@@ -316,7 +316,7 @@ export default function KalkulatorPvMagazynSection() {
     const power = Number(values['calc-pv-power'] ?? 0);
     const capacity = Number(values['calc-storage'] ?? 0);
     if (!Number.isFinite(power) || !Number.isFinite(capacity) || power < 0 || capacity < 0) {
-      setProfilesActionError('Podaj poprawne wartosci mocy i pojemnosci.');
+      setProfilesActionError('Podaj poprawne wartości mocy i pojemności.');
       return;
     }
 
@@ -326,7 +326,7 @@ export default function KalkulatorPvMagazynSection() {
         await createCalculationProfile({ power: Math.round(power), capacity: Math.round(capacity) });
         await loadCalculationProfiles();
       } catch {
-        setProfilesActionError('Nie udalo sie zapisac profilu kalkulacji.');
+        setProfilesActionError('Nie udało się zapisać profilu kalkulacji.');
       }
     })();
   };
@@ -347,7 +347,7 @@ export default function KalkulatorPvMagazynSection() {
         await deleteCalculationProfile(profileId);
         await loadCalculationProfiles();
       } catch {
-        setProfilesActionError('Nie udalo sie usunac profilu kalkulacji.');
+        setProfilesActionError('Nie udało się usunąć profilu kalkulacji.');
       }
     })();
   };
@@ -359,7 +359,7 @@ export default function KalkulatorPvMagazynSection() {
         modalTitle="Dodaj profil kalkulacji PV + Magazyn"
         fields={[
           { id: 'calc-pv-power', label: 'Moc PV (kWp)', type: 'number', placeholder: '50' },
-          { id: 'calc-storage', label: 'Pojemnosc magazynu (kWh)', type: 'number', placeholder: '100' },
+          { id: 'calc-storage', label: 'Pojemność magazynu (kWh)', type: 'number', placeholder: '100' },
         ]}
         onSubmit={handleAddCalculationProfile}
       />
@@ -382,13 +382,13 @@ export default function KalkulatorPvMagazynSection() {
                 onClick={() => setProfilesOpen((prev) => !prev)}
                 type="button"
               >
-                {profilesOpen ? 'Ukryj' : 'Pokaz'}
+                {profilesOpen ? 'Ukryj' : 'Pokaż'}
               </button>
             </div>
             {profilesActionError ? <p className="email-warning">{profilesActionError}</p> : null}
             {profilesOpen ? (
               profilesLoading ? (
-                <p>Ladowanie profili...</p>
+                <p>Ładowanie profili...</p>
               ) : profilesError ? (
                 <p className="email-warning">{profilesError}</p>
               ) : calculationProfiles.length ? (
@@ -410,7 +410,7 @@ export default function KalkulatorPvMagazynSection() {
                       <div style={{ display: 'grid', gap: '0.15rem' }}>
                         <strong>Profil #{profile.id}</strong>
                         <span>Moc PV: {profile.power} kWp</span>
-                        <span>Pojemnosc: {profile.capacity} kWh</span>
+                        <span>Pojemność: {profile.capacity} kWh</span>
                         <small style={{ color: '#6b7280' }}>
                           {new Date(profile.createdAt).toLocaleString('pl-PL')}
                         </small>
@@ -421,21 +421,21 @@ export default function KalkulatorPvMagazynSection() {
                           onClick={() => applyCalculationProfile(profile)}
                           type="button"
                         >
-                          Uzyj profilu
+                          Użyj profilu
                         </button>
                         <button
                           className="table-action-btn danger"
                           onClick={() => removeCalculationProfile(profile.id)}
                           type="button"
                         >
-                          Usun profil
+                          Usuń profil
                         </button>
                       </div>
                     </article>
                   ))}
                 </div>
               ) : (
-                <p>Brak zapisanych profili. Dodaj pierwszy przez przycisk +.</p>
+                <p>Brak zapisanych profili. Dodaj pierwszy, używając przycisku +.</p>
               )
             ) : (
               <div
@@ -537,25 +537,25 @@ export default function KalkulatorPvMagazynSection() {
               </div>
 
               <div className="calc-section">
-                <h2>Profil zuzycia energii</h2>
+                <h2>Profil zużycia energii</h2>
                 <label className="calc-label">
-                  Roczne zuzycie energii (kWh)
+                  Roczne zużycie energii (kWh)
                   <input className="calc-input" type="number" step="100" value={formData.annualConsumption} onChange={onNumberChange('annualConsumption')} />
                 </label>
                 <label className="calc-label">
-                  Typ sezonowosci prognozy
+                  Typ sezonowości prognozy
                   <select
                     className="calc-select"
                     value={formData.seasonalityType}
                     onChange={(e) => setFormData((prev) => ({ ...prev, seasonalityType: e.target.value as SeasonalityType }))}
                   >
-                    <option value="none">Brak sezonowosci</option>
-                    <option value="summer">Sezonowosc letnia</option>
-                    <option value="winter">Sezonowosc zimowa</option>
+                    <option value="none">Brak sezonowości</option>
+                    <option value="summer">Sezonowość letnia</option>
+                    <option value="winter">Sezonowość zimowa</option>
                   </select>
                 </label>
                 <label className="calc-label">
-                  Srednia cena energii czynnej (zl/kWh)
+                  Średnia cena energii czynnej (zł/kWh)
                   <input className="calc-input" type="number" step="0.01" value={formData.avgEnergyPrice} onChange={onNumberChange('avgEnergyPrice')} />
                 </label>
               </div>
@@ -569,12 +569,12 @@ export default function KalkulatorPvMagazynSection() {
                     value={formData.pvType}
                     onChange={(e) => setFormData((prev) => ({ ...prev, pvType: e.target.value as 'existing' | 'planned' }))}
                   >
-                    <option value="existing">Istniejaca</option>
+                    <option value="existing">Istniejąca</option>
                     <option value="planned">Planowana</option>
                   </select>
                 </label>
                 <label className="calc-label">
-                  Moc istniejacej instalacji PV (kWp)
+                  Moc istniejącej instalacji PV (kWp)
                   <input className="calc-input" type="number" step="0.1" value={formData.existingPvPower} onChange={onNumberChange('existingPvPower')} />
                 </label>
                 <label className="calc-label">
@@ -582,17 +582,17 @@ export default function KalkulatorPvMagazynSection() {
                   <input className="calc-input" type="number" step="0.1" value={formData.pvPower} onChange={onNumberChange('pvPower')} />
                 </label>
                 <label className="calc-label">
-                  Zakladany poziom bezposredniej autokonsumpcji (%)
+                  Zakładany poziom bezpośredniej autokonsumpcji (%)
                   <input className="calc-input" type="number" min="0" max="100" value={formData.selfConsPct} onChange={onNumberChange('selfConsPct')} />
                 </label>
                 {formData.pvType === 'planned' ? (
                   <label className="calc-label">
-                    Calkowita cena netto instalacji PV (zl)
+                    Całkowita cena netto instalacji PV (zł)
                     <input className="calc-input" type="number" step="100" value={formData.pvTotalPrice} onChange={onNumberChange('pvTotalPrice')} />
                   </label>
                 ) : null}
                 <label className="calc-label">
-                  Pojemnosc magazynu (kWh)
+                  Pojemność magazynu (kWh)
                   <input className="calc-input" type="number" step="0.1" value={formData.batteryCapacity} onChange={onNumberChange('batteryCapacity')} />
                 </label>
                 <label className="calc-label">
@@ -600,15 +600,15 @@ export default function KalkulatorPvMagazynSection() {
                   <input className="calc-input" type="number" value={batteryPower} readOnly />
                 </label>
                 <label className="calc-label">
-                  Calkowita cena netto magazynu energii (zl)
+                  Całkowita cena netto magazynu energii (zł)
                   <input className="calc-input" type="number" step="100" value={formData.batteryTotalPrice} onChange={onNumberChange('batteryTotalPrice')} />
                 </label>
               </div>
 
               <div className="calc-section">
-                <h2>Spoldzielnia i finansowanie</h2>
+                <h2>Spółdzielnia i finansowanie</h2>
                 <label className="calc-label">
-                  Czy w spoldzielni energetycznej?
+                  Czy w spółdzielni energetycznej?
                   <select
                     className="calc-select"
                     value={formData.inCoop ? 'yes' : 'no'}
@@ -621,32 +621,32 @@ export default function KalkulatorPvMagazynSection() {
                 {formData.inCoop ? (
                   <>
                     <label className="calc-label">
-                      Odkup energii w spoldzielni (zl/kWh)
+                      Odkup energii w spółdzielni (zł/kWh)
                       <input className="calc-input" type="number" step="0.01" value={formData.coopSellPrice} onChange={onNumberChange('coopSellPrice')} />
                     </label>
                     <label className="calc-label">
-                      Zakup energii w spoldzielni (zl/kWh)
+                      Zakup energii w spółdzielni (zł/kWh)
                       <input className="calc-input" type="number" step="0.01" value={formData.coopBuyPrice} onChange={onNumberChange('coopBuyPrice')} />
                     </label>
                     <label className="calc-label">
-                      Oplata czlonkowska (zl/m-c)
+                      Opłata członkowska (zł/m-c)
                       <input className="calc-input" type="number" step="0.01" value={formData.coopMembershipFee} onChange={onNumberChange('coopMembershipFee')} />
                     </label>
                     <label className="calc-label">
-                      Oplata bilansowa (zl/kWh)
+                      Opłata bilansowa (zł/kWh)
                       <input className="calc-input" type="number" step="0.001" value={formData.coopBalanceFee} onChange={onNumberChange('coopBalanceFee')} />
                     </label>
                   </>
                 ) : null}
                 <label className="calc-label">
-                  Model oplat EMS
+                  Model opłat EMS
                   <select
                     className="calc-select"
                     value={formData.emsType}
                     onChange={(e) => setFormData((prev) => ({ ...prev, emsType: e.target.value as EmsType }))}
                   >
                     <option value="none">Brak / wliczone</option>
-                    <option value="one-time">Jednorazowa oplata</option>
+                    <option value="one-time">Jednorazowa opłata</option>
                     <option value="monthly">Miesieczna licencja</option>
                   </select>
                 </label>
@@ -657,7 +657,7 @@ export default function KalkulatorPvMagazynSection() {
                   </label>
                 ) : null}
                 <label className="calc-label">
-                  Inflacja roczna energii (%)
+                  Roczna inflacja cen energii (%)
                   <input className="calc-input" type="number" step="0.1" value={formData.inflation} onChange={onNumberChange('inflation')} />
                 </label>
                 <label className="calc-label">
@@ -667,12 +667,12 @@ export default function KalkulatorPvMagazynSection() {
                     value={formData.subsidyType}
                     onChange={(e) => setFormData((prev) => ({ ...prev, subsidyType: e.target.value as SubsidyType }))}
                   >
-                    <option value="fixed">Kwota stala (zl)</option>
+                    <option value="fixed">Kwota stała (zł)</option>
                     <option value="percent">Procent inwestycji</option>
                   </select>
                 </label>
                 <label className="calc-label">
-                  Wartosc dotacji
+                  Wartość dotacji
                   <input className="calc-input" type="number" step="100" value={formData.subsidyValue} onChange={onNumberChange('subsidyValue')} />
                 </label>
                 <button className="calc-button" onClick={calculate} type="button">
@@ -694,20 +694,20 @@ export default function KalkulatorPvMagazynSection() {
                     </p>
                   </div>
                   <div className="calc-section">
-                    <h2>Miesieczna tabela kosztow i przeplywow energii</h2>
+                    <h2>Miesięczna tabela kosztów i przepływów energii</h2>
                     <div className="table-wrapper">
                       <table className="calc-table">
                         <thead>
                           <tr>
                             <th>M-c</th>
-                            <th>Zuzycie</th>
+                            <th>Zużycie</th>
                             <th>Produkcja PV</th>
                             <th>Autokons.</th>
-                            <th>Eksport lacznie</th>
+                            <th>Eksport łącznie</th>
                             <th>Do sieci</th>
-                            <th>Do spoldz.</th>
+                            <th>Do spółdz.</th>
                             <th>Import</th>
-                            <th>Koszt calk.</th>
+                            <th>Koszt całk.</th>
                             <th>Przychod</th>
                             <th>Bilans netto</th>
                           </tr>
@@ -735,35 +735,35 @@ export default function KalkulatorPvMagazynSection() {
                   <div className="calc-section">
                     <h2>Podsumowanie roczne</h2>
                     <p>
-                      Stary bilans netto: <b>{result.oldNet.toFixed(2)} zl</b>
+                      Stary bilans netto: <b>{result.oldNet.toFixed(2)} zł</b>
                       <br />
-                      Koszty po inwestycji: <b>{result.newTotalCost.toFixed(2)} zl</b>
+                      Koszty po inwestycji: <b>{result.newTotalCost.toFixed(2)} zł</b>
                       <br />
-                      Przychod po inwestycji: <b>{result.newRevenue.toFixed(2)} zl</b>
+                      Przychód po inwestycji: <b>{result.newRevenue.toFixed(2)} zł</b>
                       <br />
-                      Nowy bilans netto: <b>{result.newNet.toFixed(2)} zl</b>
+                      Nowy bilans netto: <b>{result.newNet.toFixed(2)} zł</b>
                       <br />
-                      Roczne oszczednosci: <b className="positive">{result.annualSaving.toFixed(2)} zl</b> (
+                      Roczne oszczędności: <b className="positive">{result.annualSaving.toFixed(2)} zł</b> (
                       {result.savingsPercent})
                     </p>
                   </div>
                   <div className="calc-section">
                     <h2>Wyniki inwestycji (25 lat)</h2>
                     <p>
-                      Inwestycja netto: <b>{result.netInvestment.toFixed(0)} zl</b>
+                      Inwestycja netto: <b>{result.netInvestment.toFixed(0)} zł</b>
                       <br />
                       Prosty okres zwrotu:{' '}
                       <b>{Number.isFinite(result.payback) ? `${result.payback.toFixed(1)} lat` : '—'}</b>
                       <br />
                       ROI po 25 latach: <b className="positive">{result.roi.toFixed(1)} %</b>
                       <br />
-                      NPV (7%): <b className="positive">{result.npv.toFixed(0)} zl</b>
+                      NPV (7%): <b className="positive">{result.npv.toFixed(0)} zł</b>
                     </p>
                   </div>
                 </>
               ) : (
                 <div className="calc-section">
-                  <p>Najpierw uzupelnij konfiguracje i kliknij OBLICZ.</p>
+                  <p>Najpierw uzupełnij konfigurację i kliknij OBLICZ.</p>
                 </div>
               )}
             </div>

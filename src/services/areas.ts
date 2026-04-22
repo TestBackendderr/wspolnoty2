@@ -1,5 +1,6 @@
 import { apiRequest } from '@/services/api';
 import type { Area } from '@/types/domain';
+import { toApiRegion, toDisplayRegion } from '@/utils/regions';
 
 interface AreaApiItem {
   id: number;
@@ -22,7 +23,7 @@ function mapAreaFromApi(item: AreaApiItem): Area {
     name: item.name,
     type: item.type,
     postalCode: item.postalCode,
-    voivodeship: item.region,
+    voivodeship: toDisplayRegion(item.region),
     responsibleUser: item.responsibleUser,
   };
 }
@@ -54,7 +55,7 @@ export async function listAreas(params: ListAreasParams = {}): Promise<Paginated
   const query = new URLSearchParams();
   if (params.page !== undefined) query.set('page', String(params.page));
   if (params.limit !== undefined) query.set('limit', String(params.limit));
-  if (params.region) query.set('region', params.region);
+  if (params.region) query.set('region', toApiRegion(params.region));
   if (params.sortOrder) query.set('sortOrder', params.sortOrder);
   const qs = query.toString();
   const response = await apiRequest<PaginatedAreasApiResponse>(
@@ -78,9 +79,10 @@ export interface CreateAreaPayload {
 }
 
 export async function createArea(payload: CreateAreaPayload): Promise<Area> {
+  const body = { ...payload, region: toApiRegion(payload.region) };
   const item = await apiRequest<AreaApiItem>('/areas', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   return mapAreaFromApi(item);
 }
@@ -97,9 +99,10 @@ export async function updateArea(
   id: number,
   payload: UpdateAreaPayload,
 ): Promise<Area> {
+  const body = payload.region ? { ...payload, region: toApiRegion(payload.region) } : payload;
   const item = await apiRequest<AreaApiItem>(`/areas/${id}`, {
     method: 'PATCH',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   return mapAreaFromApi(item);
 }

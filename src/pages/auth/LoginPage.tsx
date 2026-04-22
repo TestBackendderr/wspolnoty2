@@ -18,7 +18,7 @@ export default function LoginPage() {
     try {
       const user = await login(payload);
       if (!user) {
-        setError('Nieprawidlowy email lub haslo.');
+        setError('Nieprawidłowy e-mail lub hasło.');
         return;
       }
       setError('');
@@ -26,10 +26,10 @@ export default function LoginPage() {
       navigate(fromState ?? '/dashboard', { replace: true });
     } catch (err) {
       if (err instanceof BlockedAccountError) {
-        setError('To konto zostalo zablokowane.');
+        setError('To konto zostało zablokowane.');
         return;
       }
-      setError('Nie udalo sie zalogowac. Sprobuj ponownie.');
+      setError('Nie udało się zalogować. Spróbuj ponownie.');
     }
   };
 

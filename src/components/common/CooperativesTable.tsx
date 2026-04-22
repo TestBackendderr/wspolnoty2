@@ -8,6 +8,7 @@ interface CooperativesTableProps {
   cooperatives: Cooperative[];
   onEditCooperative?: (coop: Cooperative) => void;
   onViewHistory?: (coop: Cooperative) => void;
+  onViewDetails?: (coop: Cooperative) => void;
 }
 
 function compareCooperatives(
@@ -45,8 +46,9 @@ export default function CooperativesTable({
   cooperatives,
   onEditCooperative,
   onViewHistory,
+  onViewDetails,
 }: CooperativesTableProps) {
-  const showActions = Boolean(onEditCooperative) || Boolean(onViewHistory);
+  const showActions = Boolean(onEditCooperative) || Boolean(onViewHistory) || Boolean(onViewDetails);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -160,6 +162,15 @@ export default function CooperativesTable({
                         Historia
                       </button>
                     ) : null}
+                    {onViewDetails ? (
+                      <button
+                        className="table-action-btn"
+                        onClick={() => onViewDetails(coop)}
+                        type="button"
+                      >
+                        Szczegóły
+                      </button>
+                    ) : null}
                   </div>
                 </td>
               ) : null}
@@ -168,7 +179,7 @@ export default function CooperativesTable({
           {sortedCooperatives.length === 0 ? (
             <tr>
               <td colSpan={showActions ? 6 : 5} className="empty-row">
-                Brak spoldzielni
+                Brak spółdzielni
               </td>
             </tr>
           ) : null}

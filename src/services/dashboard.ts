@@ -1,5 +1,6 @@
 import type { Cooperative } from '@/types/domain';
 import { apiRequest } from '@/services/api';
+import { toDisplayRegion } from '@/utils/regions';
 
 type DashboardApiCooperativeStatus = 'ACTIVE' | 'IN_PROGRESS' | 'PLANNED' | 'PAUSED';
 
@@ -59,7 +60,7 @@ function mapCooperativeFromApi(item: DashboardApiCooperative): Cooperative {
     id: item.id,
     name: item.name,
     address: item.address,
-    voivodeship: item.region,
+    voivodeship: toDisplayRegion(item.region),
     status: mapStatusFromApi(item.status),
     caregiverId: null,
     plannedPower: item.ratedPower,
@@ -75,7 +76,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     users: response.users,
     areas: response.areas,
     totalInstalledPowerKW: response.totalInstalledPowerKW,
-    cooperativesByRegion: response.cooperativesByRegion,
+    cooperativesByRegion: response.cooperativesByRegion.map((entry) => ({
+      ...entry,
+      region: toDisplayRegion(entry.region),
+    })),
     recentCooperatives: response.recentCooperatives.map(mapCooperativeFromApi),
     usersByActivityStatus: {
       active: response.usersByActivityStatus?.aktywni ?? 0,
