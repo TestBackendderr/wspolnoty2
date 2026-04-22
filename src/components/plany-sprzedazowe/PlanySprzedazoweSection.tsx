@@ -128,6 +128,8 @@ export default function PlanySprzedazoweSection({
   const [manage, setManage] = useState<{ coopId: number; quarterYear: string } | null>(null);
   const [entryModal, setEntryModal] = useState<EntryDraft | null>(null);
   const [targetDraft, setTargetDraft] = useState('0');
+  const [addPlanOpen, setAddPlanOpen] = useState(false);
+  const [selectedCoopForPlan, setSelectedCoopForPlan] = useState('');
 
   useEffect(() => {
     try {
@@ -208,6 +210,14 @@ export default function PlanySprzedazoweSection({
     upsertPlan(plan);
     setTargetDraft(String(plan.targetKWh));
     setManage({ coopId, quarterYear });
+  };
+
+  const createPlanByAdmin = () => {
+    const coopId = Number(selectedCoopForPlan);
+    if (!Number.isInteger(coopId)) return;
+    openManage(coopId, selectedQuarter);
+    setAddPlanOpen(false);
+    setSelectedCoopForPlan('');
   };
 
   const rows = useMemo(() => {
@@ -327,15 +337,22 @@ export default function PlanySprzedazoweSection({
     <section className="panel sales-plan-panel">
       <div className="sales-plan-header">
         <h3>{scope === 'all' ? `${title} - ${selectedQuarter}` : title}</h3>
-        <select
-          className="sales-plan-quarter-select"
-          value={selectedQuarter}
-          onChange={(event) => setSelectedQuarter(event.target.value)}
-        >
-          {quarterOptions.map((quarter) => (
-            <option key={quarter} value={quarter}>{quarter}</option>
-          ))}
-        </select>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {isAdmin && scope === 'all' ? (
+            <button className="primary-btn" type="button" onClick={() => setAddPlanOpen(true)}>
+              Dodaj plan sprzedażowy
+            </button>
+          ) : null}
+          <select
+            className="sales-plan-quarter-select"
+            value={selectedQuarter}
+            onChange={(event) => setSelectedQuarter(event.target.value)}
+          >
+            {quarterOptions.map((quarter) => (
+              <option key={quarter} value={quarter}>{quarter}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {scope === 'all' ? (
@@ -480,6 +497,39 @@ export default function PlanySprzedazoweSection({
                   </div>
                 </section>
               ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {addPlanOpen ? (
+        <div className="modal-backdrop" onClick={() => setAddPlanOpen(false)}>
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <h3>Dodaj plan sprzedażowy</h3>
+            <p className="map-none" style={{ marginBottom: 12 }}>
+              Wybierz spółdzielnię, aby nadać plan sprzedażowy opiekunowi na wybrany kwartał.
+            </p>
+            <label htmlFor="sales-plan-coop-select" style={{ display: 'grid', gap: 6 }}>
+              Spółdzielnia
+              <select
+                id="sales-plan-coop-select"
+                className="add-entry-select"
+                value={selectedCoopForPlan}
+                onChange={(event) => setSelectedCoopForPlan(event.target.value)}
+              >
+                <option value="">— wybierz spółdzielnię —</option>
+                {visibleCooperatives.map((coop) => (
+                  <option key={coop.id} value={coop.id}>{coop.name}</option>
+                ))}
+              </select>
+            </label>
+            <div className="sales-plan-entry-buttons" style={{ marginTop: 14 }}>
+              <button className="primary-outline-btn" type="button" onClick={() => setAddPlanOpen(false)}>
+                Anuluj
+              </button>
+              <button className="primary-btn" type="button" disabled={!selectedCoopForPlan} onClick={createPlanByAdmin}>
+                Utwórz plan
+              </button>
             </div>
           </div>
         </div>
