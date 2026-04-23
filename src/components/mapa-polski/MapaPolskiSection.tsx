@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AppDatabase } from '@/types/domain';
 import PromptModal from '@/components/common/PromptModal';
+import { useAuth } from '@/app/providers/authContext';
 import {
   createCooperative,
   getCooperativeById,
@@ -171,6 +172,7 @@ export default function MapaPolskiSection({
   onSetVoivodeshipLead,
   onSetVoivodeshipAssignments,
 }: MapaPolskiSectionProps) {
+  const { currentUser, isCaregiver } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -501,6 +503,16 @@ export default function MapaPolskiSection({
   const linkedAssignedAreaIds = new Set(selectedLinkedAreas.map((area) => area.id));
   const linkedAvailableAreas = db.areas.filter((area) => !linkedAssignedAreaIds.has(area.id));
   const selectedLinkedCaregiver = selectedLinkedCoop?.supervisor ?? null;
+  const canEditSelectedLinkedCoop = Boolean(
+    selectedLinkedCoop
+    && (
+      !isCaregiver
+      || (currentUser && (
+        selectedLinkedCoop.caregiverId === currentUser.id
+        || selectedLinkedCoop.supervisorId === currentUser.id
+      ))
+    ),
+  );
   const shouldShowLinkedCard = isCustomSelectedPoint;
   const selectedCaregiversByVoivodeship = selectedVoivodeship
     ? grouped.caregiversByVoiv.get(selectedVoivodeship) ?? []
@@ -603,6 +615,10 @@ export default function MapaPolskiSection({
   const saveLinkedMember = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedLinkedCoop) return;
+    if (!canEditSelectedLinkedCoop) {
+      setLinkedError('Nie masz uprawnień do edycji tej spółdzielni.');
+      return;
+    }
     if (!linkedMemberFullName.trim() || !linkedMemberPpeAddress.trim()) return;
 
     const current = linkedMembersOverrides[selectedLinkedCoop.id]
@@ -650,6 +666,10 @@ export default function MapaPolskiSection({
 
   const removeLinkedMember = (memberId: number) => {
     if (!selectedLinkedCoop) return;
+    if (!canEditSelectedLinkedCoop) {
+      setLinkedError('Nie masz uprawnień do edycji tej spółdzielni.');
+      return;
+    }
     const current = linkedMembersOverrides[selectedLinkedCoop.id]
       ?? selectedLinkedCoop.members.map((member) => ({
         id: member.id,
@@ -694,6 +714,10 @@ export default function MapaPolskiSection({
 
   const saveLinkedCoopMeta = () => {
     if (!selectedLinkedCoop) return;
+    if (!canEditSelectedLinkedCoop) {
+      setLinkedError('Nie masz uprawnień do edycji tej spółdzielni.');
+      return;
+    }
     const nextSupervisorId = Number(linkedCaregiverDraft);
     const patch: { supervisorId?: number; status?: ReturnType<typeof mapStatusToApi> } = {};
     if (Number.isInteger(nextSupervisorId) && nextSupervisorId > 0 && nextSupervisorId !== selectedLinkedCoop.supervisorId) {
@@ -720,6 +744,10 @@ export default function MapaPolskiSection({
 
   const addLinkedArea = () => {
     if (!selectedLinkedCoop || !linkedAreaDraft) return;
+    if (!canEditSelectedLinkedCoop) {
+      setLinkedError('Nie masz uprawnień do edycji tej spółdzielni.');
+      return;
+    }
     const nextAreaId = Number(linkedAreaDraft);
     if (!Number.isInteger(nextAreaId) || nextAreaId <= 0) return;
 
@@ -745,6 +773,10 @@ export default function MapaPolskiSection({
 
   const removeLinkedArea = (areaId: number) => {
     if (!selectedLinkedCoop) return;
+    if (!canEditSelectedLinkedCoop) {
+      setLinkedError('Nie masz uprawnień do edycji tej spółdzielni.');
+      return;
+    }
     const nextAreaIds = selectedLinkedAreas.map((area) => area.id).filter((id) => id !== areaId);
 
     setLinkedSaving(true);
@@ -969,7 +1001,7 @@ export default function MapaPolskiSection({
                       className="add-entry-select"
                       value={linkedCaregiverDraft}
                       onChange={(event) => setLinkedCaregiverDraft(event.target.value)}
-                      disabled={!selectedLinkedCoop}
+                      disabled={!selectedLinkedCoop || !canEditSelectedLinkedCoop}
                     >
                       <option value="">Brak głównego opiekuna</option>
                       {db.caregivers.map((caregiver) => (
@@ -986,7 +1018,7 @@ export default function MapaPolskiSection({
                       className="add-entry-select"
                       value={linkedStatusDraft}
                       onChange={(event) => setLinkedStatusDraft(event.target.value as AppDatabase['cooperatives'][number]['status'])}
-                      disabled={!selectedLinkedCoop}
+                      disabled={!selectedLinkedCoop || !canEditSelectedLinkedCoop}
                     >
                       <option value="planowana">Planowana</option>
                       <option value="w trakcie tworzenia">W trakcie tworzenia</option>
@@ -994,10 +1026,13 @@ export default function MapaPolskiSection({
                       <option value="zawieszona">Zawieszona</option>
                     </select>
                   </label>
-                  <button className="primary-btn" type="button" disabled={linkedSaving || !selectedLinkedCoop} onClick={saveLinkedCoopMeta}>
+                  <button className="primary-btn" type="button" disabled={linkedSaving || !selectedLinkedCoop || !canEditSelectedLinkedCoop} onClick={saveLinkedCoopMeta}>
                     {linkedSaving ? 'Zapisywanie...' : 'Zapisz zmiany'}
                   </button>
                 </div>
+                {!canEditSelectedLinkedCoop ? (
+                  <p className="map-point-help">Brak uprawnień do edycji tej spółdzielni.</p>
+                ) : null}
 
                 <div className="map-linked-sections">
                   <section className="map-linked-section">
@@ -1008,14 +1043,14 @@ export default function MapaPolskiSection({
                           className="add-entry-select"
                           value={linkedAreaDraft}
                           onChange={(event) => setLinkedAreaDraft(event.target.value)}
-                          disabled={!selectedLinkedCoop || linkedAvailableAreas.length === 0}
+                          disabled={!selectedLinkedCoop || linkedAvailableAreas.length === 0 || !canEditSelectedLinkedCoop}
                         >
                           <option value="">Dodaj teren</option>
                           {linkedAvailableAreas.map((area) => (
                             <option key={area.id} value={area.id}>{area.name}</option>
                           ))}
                         </select>
-                        <button className="primary-btn" type="button" disabled={!selectedLinkedCoop || !linkedAreaDraft || linkedSaving} onClick={addLinkedArea}>
+                        <button className="primary-btn" type="button" disabled={!selectedLinkedCoop || !linkedAreaDraft || linkedSaving || !canEditSelectedLinkedCoop} onClick={addLinkedArea}>
                           Dodaj
                         </button>
                       </div>
@@ -1025,7 +1060,7 @@ export default function MapaPolskiSection({
                         {selectedLinkedAreas.map((area) => (
                           <li key={area.id}>
                             <span>{area.name}</span>
-                            {selectedLinkedCoop ? (
+                            {selectedLinkedCoop && canEditSelectedLinkedCoop ? (
                               <button type="button" className="table-action-btn danger" onClick={() => removeLinkedArea(area.id)}>
                                 Usuń
                               </button>
@@ -1039,7 +1074,7 @@ export default function MapaPolskiSection({
                   <section className="map-linked-section">
                     <div className="map-linked-section-head">
                       <strong>Członkowie ({selectedLinkedMembers.length})</strong>
-                      <button className="primary-btn" type="button" onClick={openAddLinkedMemberModal} disabled={!selectedLinkedCoop}>
+                      <button className="primary-btn" type="button" onClick={openAddLinkedMemberModal} disabled={!selectedLinkedCoop || !canEditSelectedLinkedCoop}>
                         + Dodaj / edytuj członków
                       </button>
                     </div>
@@ -1052,14 +1087,16 @@ export default function MapaPolskiSection({
                               <em>{member.ppeAddress || 'Brak adresu PPE'}</em>
                               <em>{member.status}</em>
                             </div>
-                            <div className="map-linked-member-actions">
-                              <button type="button" className="table-action-btn" onClick={() => openEditLinkedMemberModal(member)}>
-                                Edytuj
-                              </button>
-                              <button type="button" className="table-action-btn danger" onClick={() => removeLinkedMember(member.id)}>
-                                Usuń
-                              </button>
-                            </div>
+                            {canEditSelectedLinkedCoop ? (
+                              <div className="map-linked-member-actions">
+                                <button type="button" className="table-action-btn" onClick={() => openEditLinkedMemberModal(member)}>
+                                  Edytuj
+                                </button>
+                                <button type="button" className="table-action-btn danger" onClick={() => removeLinkedMember(member.id)}>
+                                  Usuń
+                                </button>
+                              </div>
+                            ) : null}
                           </li>
                         ))}
                       </ul>

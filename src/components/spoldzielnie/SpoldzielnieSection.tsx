@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import CooperativesTable from '@/components/common/CooperativesTable';
-import type { AddEntryValues } from '@/components/common/AddEntryModal';
 import { VOIVODESHIPS } from '@/constants/voivodeships';
 import {
   listCooperatives,
@@ -77,7 +76,6 @@ function formatDateTime(iso: string): { date: string; time: string } {
 /** When `cooperatives` prop is passed, the section works in read-only, prop-driven mode (e.g. caregiver view). */
 interface SpoldzielnieSectionProps {
   cooperatives?: Cooperative[];
-  onAddCooperative?: (values: AddEntryValues) => Promise<void> | void;
   onUpdateCooperative?: (
     coopId: number,
     payload: Pick<Cooperative, 'status' | 'plannedPower' | 'installedPower'>,
@@ -87,7 +85,6 @@ interface SpoldzielnieSectionProps {
 
 export default function SpoldzielnieSection({
   cooperatives: cooperativesProp,
-  onAddCooperative: onAddCooperativeProp,
   onUpdateCooperative: onUpdateCooperativeProp,
   onDeleteCooperative: onDeleteCooperativeProp,
 }: SpoldzielnieSectionProps) {
@@ -203,8 +200,7 @@ export default function SpoldzielnieSection({
   }, [searchParams, setSearchParams]);
 
   // ── add cooperative ───────────────────────────────────────────────────────
-  // In selfFetch mode creation happens via /mapa?pendingCoop=1 flow (see submitCreate).
-  // Prop-driven mode uses onAddCooperativeProp directly in submitCreate.
+  // Creation always goes through /mapa?pendingCoop=1 flow (point must be selected on map).
 
   useEffect(() => {
     if (!createOpen && !editing) return;
@@ -271,31 +267,7 @@ export default function SpoldzielnieSection({
       return;
     }
 
-    if (!selfFetch) {
-      // prop-driven mode (caregiver view) — keep old flow
-      const values: AddEntryValues = {
-        'coop-name': createValues.name,
-        'coop-address': createValues.address,
-        'coop-voivodeship': createValues.voivodeship,
-        'coop-planned-power': createValues.plannedPower,
-        'coop-installed-power': createValues.installedPower,
-        'coop-caregiver-id': createValues.caregiverId,
-        'coop-board-name': createValues.boardName,
-        'coop-board-email': createValues.boardEmail,
-        'coop-board-phone': createValues.boardPhone,
-        'coop-registration-date': createValues.registrationDate,
-        'coop-area-ids': selectedAreaIds.join(','),
-        'coop-members': JSON.stringify(createMembers),
-      };
-      setCreateSaving(true);
-      void (async () => {
-        try { await onAddCooperativeProp?.(values); } finally { setCreateSaving(false); }
-      })();
-      closeCreate();
-      return;
-    }
-
-    // self-fetch mode: save form data to localStorage, redirect to map for point selection
+    // Both admin and caregiver flows use map point selection before creation.
     localStorage.setItem('pending_coop_v1', JSON.stringify({
       ...createValues,
       selectedAreaIds,

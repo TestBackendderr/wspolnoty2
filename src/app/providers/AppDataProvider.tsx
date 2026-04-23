@@ -28,6 +28,11 @@ const PATHS_REQUIRING_FULL_COOPERATIVES = new Set<string>([
 /** Routes that read `db.caregivers` from AppData (synced from full `users`). */
 const PATHS_REQUIRING_FULL_USERS = new Set<string>(['/mapa', '/my-plan']);
 
+function normalizePathname(pathname: string): string {
+  if (!pathname) return '/';
+  return pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+}
+
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const { currentUser, authResolved, isCaregiver, updateCurrentUser } = useAuth();
   const location = useLocation();
@@ -50,6 +55,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const coopsInFlightRef = useRef(false);
   const usersSyncedRef = useRef(false);
   const usersInFlightRef = useRef(false);
+  const normalizedPathname = normalizePathname(location.pathname);
+  const needsFullUsers = PATHS_REQUIRING_FULL_USERS.has(normalizedPathname);
+  const needsFullCooperatives = PATHS_REQUIRING_FULL_COOPERATIVES.has(normalizedPathname);
 
   useEffect(() => {
     if (!currentUser) {
@@ -63,7 +71,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!authResolved || !currentUser) return;
-    if (!PATHS_REQUIRING_FULL_USERS.has(location.pathname)) return;
+    if (!needsFullUsers) return;
     if (usersSyncedRef.current || usersInFlightRef.current) return;
 
     usersInFlightRef.current = true;
@@ -92,11 +100,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [authResolved, currentUser, location.pathname, usersRetryTick]);
+  }, [authResolved, currentUser, needsFullUsers, usersRetryTick]);
 
   useEffect(() => {
     if (!authResolved || !currentUser) return;
-    if (!PATHS_REQUIRING_FULL_COOPERATIVES.has(location.pathname)) return;
+    if (!needsFullCooperatives) return;
     if (coopsSyncedRef.current || coopsInFlightRef.current) return;
 
     coopsInFlightRef.current = true;
@@ -122,7 +130,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [authResolved, currentUser, location.pathname, coopsRetryTick]);
+  }, [authResolved, currentUser, needsFullCooperatives, coopsRetryTick]);
 
   const handleAddCooperative: AppDataContextValue['handleAddCooperative'] = async (
     values: AddEntryValues,
@@ -277,10 +285,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const visibleCooperatives = useMemo(() => {
     if (!currentUser || !isCaregiver) return db.cooperatives;
-    const assigned = db.cooperatives.filter(
+    return db.cooperatives.filter(
       (coop) => coop.caregiverId === currentUser.id,
     );
-    return assigned.length > 0 ? assigned : db.cooperatives;
   }, [db.cooperatives, currentUser, isCaregiver]);
 
   const value: AppDataContextValue = {

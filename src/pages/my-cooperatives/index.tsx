@@ -2,13 +2,12 @@ import SpoldzielnieSection from '@/components/spoldzielnie/SpoldzielnieSection';
 import { useAppData } from '@/app/providers/appDataContext';
 
 export default function MyCooperativesPage() {
-  const { visibleCooperatives, handleAddCooperative, handleDeleteCooperative } =
+  const { visibleCooperatives, handleDeleteCooperative } =
     useAppData();
 
   return (
     <SpoldzielnieSection
       cooperatives={visibleCooperatives}
-      onAddCooperative={handleAddCooperative}
       onDeleteCooperative={handleDeleteCooperative}
     />
   );

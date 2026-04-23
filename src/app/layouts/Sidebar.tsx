@@ -18,6 +18,7 @@ const roleLabel: Record<UserRole, string> = {
 const caregiverNav: NavItem[] = [
   { to: '/dashboard', label: 'Pulpit', iconClass: 'fa-solid fa-chart-pie' },
   { to: '/tereny', label: 'Tereny', iconClass: 'fa-solid fa-map-marker-alt' },
+  { to: '/mapa', label: 'Mapa Polski', iconClass: 'fa-solid fa-map' },
   { to: '/my-cooperatives', label: 'Moje spółdzielnie', iconClass: 'fa-solid fa-bolt' },
   { to: '/my-plan', label: 'Mój plan sprzedaży', iconClass: 'fa-solid fa-chart-line' },
   { to: '/calculator', label: 'Kalkulator PV + Magazyn', iconClass: 'fa-solid fa-calculator' },
