@@ -1403,6 +1403,16 @@ td {
   color: #6b7280;
 }
 
+.map-linked-member-content {
+  display: grid;
+  gap: 2px;
+}
+
+.map-linked-member-actions {
+  display: flex;
+  gap: 6px;
+}
+
 .map-details-top {
   display: flex;
   justify-content: space-between;
@@ -1760,6 +1770,18 @@ td {
 .coop-create-actions .primary-outline-btn,
 .coop-create-actions .primary-btn {
   flex: 1;
+}
+
+.coop-member-form {
+  max-height: min(72vh, 760px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.coop-member-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
 }
 
 .prompt-modal-card {

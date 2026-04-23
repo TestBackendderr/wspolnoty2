@@ -13,14 +13,21 @@ import {
   type CooperativeApiStatus,
 } from '@/services/cooperatives';
 import { listAreas } from '@/services/areas';
-import { listAllUsers, listUsers } from '@/services/users';
+import { listUsers } from '@/services/users';
 import type { Cooperative, CooperativeHistoryItem } from '@/types/domain';
 
 const PAGE_SIZE = 15;
 type CreateMember = {
   id: number;
-  userId: number;
   fullName: string;
+  ppeAddress: string;
+  nip: string;
+  plannedInstallationPower: string;
+  existingInstallationPower: string;
+  plannedStoragePower: string;
+  existingStoragePower: string;
+  joinDate: string;
+  note: string;
   status: 'aktywny' | 'nieaktywny';
 };
 
@@ -126,10 +133,17 @@ export default function SpoldzielnieSection({
   const [editMembers, setEditMembers] = useState<CreateMember[]>([]);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [memberMode, setMemberMode] = useState<'create' | 'edit'>('create');
-  const [memberUserId, setMemberUserId] = useState('');
+  const [memberFullName, setMemberFullName] = useState('');
+  const [memberPpeAddress, setMemberPpeAddress] = useState('');
+  const [memberNip, setMemberNip] = useState('');
+  const [memberPlannedInstallationPower, setMemberPlannedInstallationPower] = useState('');
+  const [memberExistingInstallationPower, setMemberExistingInstallationPower] = useState('');
+  const [memberPlannedStoragePower, setMemberPlannedStoragePower] = useState('');
+  const [memberExistingStoragePower, setMemberExistingStoragePower] = useState('');
+  const [memberJoinDate, setMemberJoinDate] = useState(new Date().toISOString().slice(0, 10));
+  const [memberNote, setMemberNote] = useState('');
   const [memberStatus, setMemberStatus] = useState<'aktywny' | 'nieaktywny'>('aktywny');
   const [editingMemberId, setEditingMemberId] = useState<number | null>(null);
-  const [allUsers, setAllUsers] = useState<Array<{ id: number; name: string }>>([]);
   const [createValues, setCreateValues] = useState<CooperativeCreateFormValues>({
     name: '',
     address: '',
@@ -202,8 +216,6 @@ export default function SpoldzielnieSection({
         ]);
         setCaregivers(usersRes.data.map((u) => ({ id: u.id, name: u.name })));
         setAreas(areasRes.data.map((a) => ({ id: a.id, name: a.name })));
-        const usersAll = await listAllUsers();
-        setAllUsers(usersAll.map((u) => ({ id: u.id, name: u.name })).filter((u) => u.name.trim().length > 0));
       } catch {
         // Keep modal usable even when optional lists fail to load.
       }
@@ -216,7 +228,15 @@ export default function SpoldzielnieSection({
     setEditMembers([]);
     setEditSelectedAreaIds([]);
     setMemberModalOpen(false);
-    setMemberUserId('');
+    setMemberFullName('');
+    setMemberPpeAddress('');
+    setMemberNip('');
+    setMemberPlannedInstallationPower('');
+    setMemberExistingInstallationPower('');
+    setMemberPlannedStoragePower('');
+    setMemberExistingStoragePower('');
+    setMemberJoinDate(new Date().toISOString().slice(0, 10));
+    setMemberNote('');
     setMemberStatus('aktywny');
     setEditingMemberId(null);
     setCreateValues({
@@ -288,7 +308,15 @@ export default function SpoldzielnieSection({
   const openMembersModalForCreate = () => {
     setMemberMode('create');
     setEditingMemberId(null);
-    setMemberUserId('');
+    setMemberFullName('');
+    setMemberPpeAddress('');
+    setMemberNip('');
+    setMemberPlannedInstallationPower('');
+    setMemberExistingInstallationPower('');
+    setMemberPlannedStoragePower('');
+    setMemberExistingStoragePower('');
+    setMemberJoinDate(new Date().toISOString().slice(0, 10));
+    setMemberNote('');
     setMemberStatus('aktywny');
     setMemberModalOpen(true);
   };
@@ -296,7 +324,15 @@ export default function SpoldzielnieSection({
   const openMembersModalForEdit = (member: CreateMember) => {
     setMemberMode('create');
     setEditingMemberId(member.id);
-    setMemberUserId(String(member.userId));
+    setMemberFullName(member.fullName);
+    setMemberPpeAddress(member.ppeAddress);
+    setMemberNip(member.nip);
+    setMemberPlannedInstallationPower(member.plannedInstallationPower);
+    setMemberExistingInstallationPower(member.existingInstallationPower);
+    setMemberPlannedStoragePower(member.plannedStoragePower);
+    setMemberExistingStoragePower(member.existingStoragePower);
+    setMemberJoinDate(member.joinDate);
+    setMemberNote(member.note);
     setMemberStatus(member.status);
     setMemberModalOpen(true);
   };
@@ -304,7 +340,15 @@ export default function SpoldzielnieSection({
   const openMembersModalForEditCoop = () => {
     setMemberMode('edit');
     setEditingMemberId(null);
-    setMemberUserId('');
+    setMemberFullName('');
+    setMemberPpeAddress('');
+    setMemberNip('');
+    setMemberPlannedInstallationPower('');
+    setMemberExistingInstallationPower('');
+    setMemberPlannedStoragePower('');
+    setMemberExistingStoragePower('');
+    setMemberJoinDate(new Date().toISOString().slice(0, 10));
+    setMemberNote('');
     setMemberStatus('aktywny');
     setMemberModalOpen(true);
   };
@@ -312,22 +356,27 @@ export default function SpoldzielnieSection({
   const openMemberRowForEditCoop = (member: CreateMember) => {
     setMemberMode('edit');
     setEditingMemberId(member.id);
-    setMemberUserId(String(member.userId));
+    setMemberFullName(member.fullName);
+    setMemberPpeAddress(member.ppeAddress);
+    setMemberNip(member.nip);
+    setMemberPlannedInstallationPower(member.plannedInstallationPower);
+    setMemberExistingInstallationPower(member.existingInstallationPower);
+    setMemberPlannedStoragePower(member.plannedStoragePower);
+    setMemberExistingStoragePower(member.existingStoragePower);
+    setMemberJoinDate(member.joinDate);
+    setMemberNote(member.note);
     setMemberStatus(member.status);
     setMemberModalOpen(true);
   };
 
   const saveMember = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const selectedUserId = Number(memberUserId);
-    if (!selectedUserId) return;
-    const selectedUser = allUsers.find((u) => u.id === selectedUserId);
-    if (!selectedUser) return;
+    if (!memberFullName.trim() || !memberPpeAddress.trim()) return;
 
     const sourceMembers = memberMode === 'create' ? createMembers : editMembers;
     const setMembers = memberMode === 'create' ? setCreateMembers : setEditMembers;
     const duplicate = sourceMembers.find(
-      (m) => m.userId === selectedUserId && m.id !== editingMemberId,
+      (m) => m.ppeAddress.trim().toLowerCase() === memberPpeAddress.trim().toLowerCase() && m.id !== editingMemberId,
     );
     if (duplicate) return;
 
@@ -335,19 +384,51 @@ export default function SpoldzielnieSection({
       setMembers((prev) =>
         prev.map((m) =>
           m.id === editingMemberId
-            ? { ...m, userId: selectedUserId, fullName: selectedUser.name, status: memberStatus }
+            ? {
+                ...m,
+                fullName: memberFullName.trim(),
+                ppeAddress: memberPpeAddress.trim(),
+                nip: memberNip.trim(),
+                plannedInstallationPower: memberPlannedInstallationPower.trim(),
+                existingInstallationPower: memberExistingInstallationPower.trim(),
+                plannedStoragePower: memberPlannedStoragePower.trim(),
+                existingStoragePower: memberExistingStoragePower.trim(),
+                joinDate: memberJoinDate,
+                note: memberNote.trim(),
+                status: memberStatus,
+              }
             : m,
         ),
       );
     } else {
       setMembers((prev) => [
         ...prev,
-        { id: Date.now(), userId: selectedUserId, fullName: selectedUser.name, status: memberStatus },
+        {
+          id: Date.now(),
+          fullName: memberFullName.trim(),
+          ppeAddress: memberPpeAddress.trim(),
+          nip: memberNip.trim(),
+          plannedInstallationPower: memberPlannedInstallationPower.trim(),
+          existingInstallationPower: memberExistingInstallationPower.trim(),
+          plannedStoragePower: memberPlannedStoragePower.trim(),
+          existingStoragePower: memberExistingStoragePower.trim(),
+          joinDate: memberJoinDate,
+          note: memberNote.trim(),
+          status: memberStatus,
+        },
       ]);
     }
     setMemberModalOpen(false);
     setEditingMemberId(null);
-    setMemberUserId('');
+    setMemberFullName('');
+    setMemberPpeAddress('');
+    setMemberNip('');
+    setMemberPlannedInstallationPower('');
+    setMemberExistingInstallationPower('');
+    setMemberPlannedStoragePower('');
+    setMemberExistingStoragePower('');
+    setMemberJoinDate(new Date().toISOString().slice(0, 10));
+    setMemberNote('');
     setMemberStatus('aktywny');
   };
 
@@ -378,8 +459,15 @@ export default function SpoldzielnieSection({
     setEditMembers(
       (coop.members ?? []).map((m) => ({
         id: m.id,
-        userId: m.id,
         fullName: m.fullName,
+        ppeAddress: '',
+        nip: '',
+        plannedInstallationPower: '',
+        existingInstallationPower: '',
+        plannedStoragePower: '',
+        existingStoragePower: '',
+        joinDate: new Date().toISOString().slice(0, 10),
+        note: '',
         status: m.status === 'aktywny' ? 'aktywny' : 'nieaktywny',
       })),
     );
@@ -430,12 +518,7 @@ export default function SpoldzielnieSection({
       patch.boardPhone = editValues.boardPhone.trim();
     if (editValues.registrationDate.trim())
       patch.registrationDate = editValues.registrationDate.trim();
-    if (editMembers.length > 0) {
-      patch.members = editMembers.map((m) => ({
-        userId: m.userId,
-        status: m.status === 'aktywny' ? 'AKTYWNY' : 'NIEAKTYWNY',
-      }));
-    }
+    // Members are handled as standalone frontend entities (not user-bound IDs).
     if (editSelectedAreaIds.length > 0) patch.areaIds = editSelectedAreaIds;
 
     if (Object.keys(patch).length === 0) {
@@ -755,6 +838,7 @@ export default function SpoldzielnieSection({
                     <div key={member.id} className="coop-create-member-row">
                       <div>
                         <strong>{member.fullName}</strong>
+                        <span>{member.ppeAddress || 'Brak adresu PPE'}</span>
                         <span>{member.status}</span>
                       </div>
                       <div className="coop-create-member-actions">
@@ -931,6 +1015,7 @@ export default function SpoldzielnieSection({
                     <div key={member.id} className="coop-create-member-row">
                       <div>
                         <strong>{member.fullName}</strong>
+                        <span>{member.ppeAddress || 'Brak adresu PPE'}</span>
                         <span>{member.status}</span>
                       </div>
                       <div className="coop-create-member-actions">
@@ -995,35 +1080,112 @@ export default function SpoldzielnieSection({
         <div className="modal-backdrop" onClick={() => setMemberModalOpen(false)}>
           <div className="modal-card" onClick={(event) => event.stopPropagation()}>
             <h3>{editingMemberId ? 'Edytuj członka' : 'Dodaj członka'}</h3>
-            <form className="add-entry-form" onSubmit={saveMember}>
-              <label htmlFor="member-user-id">
-                Użytkownik
-                <select
-                  id="member-user-id"
-                  className="add-entry-select"
-                  value={memberUserId}
-                  onChange={(e) => setMemberUserId(e.target.value)}
+            <form className="add-entry-form coop-member-form" onSubmit={saveMember}>
+              <label htmlFor="member-full-name">
+                Imię Nazwisko / Nazwa
+                <input
+                  id="member-full-name"
+                  value={memberFullName}
+                  onChange={(e) => setMemberFullName(e.target.value)}
                   required
-                >
-                  <option value="">— wybierz użytkownika —</option>
-                  {allUsers.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </label>
-              <label htmlFor="member-status">
-                Status
-                <select
-                  id="member-status"
-                  className="add-entry-select"
-                  value={memberStatus}
-                  onChange={(e) => setMemberStatus(e.target.value as 'aktywny' | 'nieaktywny')}
-                >
-                  <option value="aktywny">aktywny</option>
-                  <option value="nieaktywny">nieaktywny</option>
-                </select>
+              <label htmlFor="member-ppe-address">
+                Adres PPE
+                <input
+                  id="member-ppe-address"
+                  value={memberPpeAddress}
+                  onChange={(e) => setMemberPpeAddress(e.target.value)}
+                  required
+                />
+              </label>
+              <div className="coop-member-grid-2">
+                <label htmlFor="member-nip">
+                  NIP (jeśli firma)
+                  <input
+                    id="member-nip"
+                    value={memberNip}
+                    onChange={(e) => setMemberNip(e.target.value)}
+                  />
+                </label>
+                <label htmlFor="member-planned-installation-power">
+                  Moc instalacji planowanej (kWp)
+                  <input
+                    id="member-planned-installation-power"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={memberPlannedInstallationPower}
+                    onChange={(e) => setMemberPlannedInstallationPower(e.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="coop-member-grid-2">
+                <label htmlFor="member-existing-installation-power">
+                  Moc instalacji istniejącej (kWp)
+                  <input
+                    id="member-existing-installation-power"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={memberExistingInstallationPower}
+                    onChange={(e) => setMemberExistingInstallationPower(e.target.value)}
+                  />
+                </label>
+                <label htmlFor="member-planned-storage-power">
+                  Moc Magazynu Energii planowany (kWp)
+                  <input
+                    id="member-planned-storage-power"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={memberPlannedStoragePower}
+                    onChange={(e) => setMemberPlannedStoragePower(e.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="coop-member-grid-2">
+                <label htmlFor="member-existing-storage-power">
+                  Moc Magazynu Energii istniejący (kWp)
+                  <input
+                    id="member-existing-storage-power"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={memberExistingStoragePower}
+                    onChange={(e) => setMemberExistingStoragePower(e.target.value)}
+                  />
+                </label>
+                <label htmlFor="member-status">
+                  Status
+                  <select
+                    id="member-status"
+                    className="add-entry-select"
+                    value={memberStatus}
+                    onChange={(e) => setMemberStatus(e.target.value as 'aktywny' | 'nieaktywny')}
+                  >
+                    <option value="aktywny">Aktywny</option>
+                    <option value="nieaktywny">Nieaktywny</option>
+                  </select>
+                </label>
+              </div>
+              <label htmlFor="member-join-date">
+                Data dołączenia / rejestracji
+                <input
+                  id="member-join-date"
+                  type="date"
+                  value={memberJoinDate}
+                  onChange={(e) => setMemberJoinDate(e.target.value)}
+                />
+              </label>
+              <label htmlFor="member-note">
+                Notatka do członka
+                <input
+                  id="member-note"
+                  value={memberNote}
+                  onChange={(e) => setMemberNote(e.target.value)}
+                  placeholder="Dodaj notatkę..."
+                />
               </label>
               <div className="add-entry-actions">
                 <button type="button" className="primary-outline-btn" onClick={() => setMemberModalOpen(false)}>

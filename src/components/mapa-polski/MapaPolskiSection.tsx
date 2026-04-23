@@ -59,7 +59,26 @@ interface PendingCoopData {
   boardEmail: string;
   boardPhone: string;
   selectedAreaIds: number[];
-  members: Array<{ id: number; userId: number; fullName: string; status: 'aktywny' | 'nieaktywny' }>;
+  members: Array<{
+    id: number;
+    userId?: number;
+    fullName: string;
+    status: 'aktywny' | 'nieaktywny';
+  }>;
+}
+
+interface LinkedMemberFormData {
+  id: number;
+  fullName: string;
+  ppeAddress: string;
+  nip: string;
+  plannedInstallationPower: string;
+  existingInstallationPower: string;
+  plannedStoragePower: string;
+  existingStoragePower: string;
+  joinDate: string;
+  note: string;
+  status: 'aktywny' | 'nieaktywny';
 }
 
 const VOIVODESHIPS: VoivodeshipPoint[] = [
@@ -171,6 +190,19 @@ export default function MapaPolskiSection({
   const [linkedAreaDraft, setLinkedAreaDraft] = useState('');
   const [linkedSaving, setLinkedSaving] = useState(false);
   const [linkedError, setLinkedError] = useState('');
+  const [linkedMembersOverrides, setLinkedMembersOverrides] = useState<Record<number, LinkedMemberFormData[]>>({});
+  const [linkedMemberModalOpen, setLinkedMemberModalOpen] = useState(false);
+  const [editingLinkedMemberId, setEditingLinkedMemberId] = useState<number | null>(null);
+  const [linkedMemberFullName, setLinkedMemberFullName] = useState('');
+  const [linkedMemberPpeAddress, setLinkedMemberPpeAddress] = useState('');
+  const [linkedMemberNip, setLinkedMemberNip] = useState('');
+  const [linkedMemberPlannedInstallationPower, setLinkedMemberPlannedInstallationPower] = useState('');
+  const [linkedMemberExistingInstallationPower, setLinkedMemberExistingInstallationPower] = useState('');
+  const [linkedMemberPlannedStoragePower, setLinkedMemberPlannedStoragePower] = useState('');
+  const [linkedMemberExistingStoragePower, setLinkedMemberExistingStoragePower] = useState('');
+  const [linkedMemberJoinDate, setLinkedMemberJoinDate] = useState(new Date().toISOString().slice(0, 10));
+  const [linkedMemberNote, setLinkedMemberNote] = useState('');
+  const [linkedMemberStatus, setLinkedMemberStatus] = useState<'aktywny' | 'nieaktywny'>('aktywny');
   const [pendingCoopSaving, setPendingCoopSaving] = useState(false);
   const [pendingCoopError, setPendingCoopError] = useState('');
   const [selectedPointCoopData, setSelectedPointCoopData] = useState<Cooperative | null>(null);
@@ -364,8 +396,8 @@ export default function MapaPolskiSection({
           const pending = JSON.parse(rawPending) as PendingCoopData;
           const installedPowerNum = Number(pending.installedPower);
           const memberDtos = (pending.members ?? [])
-            .filter((m) => m.userId > 0)
-            .map((m) => ({ userId: m.userId, status: m.status === 'aktywny' ? 'AKTYWNY' : 'NIEAKTYWNY' }));
+            .filter((m) => Number.isInteger(m.userId) && Number(m.userId) > 0)
+            .map((m) => ({ userId: Number(m.userId), status: m.status === 'aktywny' ? 'AKTYWNY' : 'NIEAKTYWNY' }));
 
           setPendingCoopSaving(true);
           setPendingCoopError('');
@@ -451,7 +483,21 @@ export default function MapaPolskiSection({
   // Data for the linked coop card — comes entirely from API fetch
   const selectedLinkedCoop = selectedPointCoopData;
   const selectedLinkedAreas = selectedLinkedCoop?.areas ?? [];
-  const selectedLinkedMembers = selectedLinkedCoop?.members ?? [];
+  const selectedLinkedMembers = selectedLinkedCoop
+    ? (linkedMembersOverrides[selectedLinkedCoop.id] ?? selectedLinkedCoop.members.map((member) => ({
+        id: member.id,
+        fullName: member.fullName,
+        ppeAddress: '',
+        nip: '',
+        plannedInstallationPower: '',
+        existingInstallationPower: '',
+        plannedStoragePower: '',
+        existingStoragePower: '',
+        joinDate: new Date().toISOString().slice(0, 10),
+        note: '',
+        status: member.status,
+      })))
+    : [];
   const linkedAssignedAreaIds = new Set(selectedLinkedAreas.map((area) => area.id));
   const linkedAvailableAreas = db.areas.filter((area) => !linkedAssignedAreaIds.has(area.id));
   const selectedLinkedCaregiver = selectedLinkedCoop?.supervisor ?? null;
@@ -518,6 +564,110 @@ export default function MapaPolskiSection({
   const closePendingPointModal = () => {
     setPendingPoint(null);
     setPendingPointName('');
+  };
+
+  const resetLinkedMemberForm = () => {
+    setEditingLinkedMemberId(null);
+    setLinkedMemberFullName('');
+    setLinkedMemberPpeAddress('');
+    setLinkedMemberNip('');
+    setLinkedMemberPlannedInstallationPower('');
+    setLinkedMemberExistingInstallationPower('');
+    setLinkedMemberPlannedStoragePower('');
+    setLinkedMemberExistingStoragePower('');
+    setLinkedMemberJoinDate(new Date().toISOString().slice(0, 10));
+    setLinkedMemberNote('');
+    setLinkedMemberStatus('aktywny');
+  };
+
+  const openAddLinkedMemberModal = () => {
+    resetLinkedMemberForm();
+    setLinkedMemberModalOpen(true);
+  };
+
+  const openEditLinkedMemberModal = (member: LinkedMemberFormData) => {
+    setEditingLinkedMemberId(member.id);
+    setLinkedMemberFullName(member.fullName);
+    setLinkedMemberPpeAddress(member.ppeAddress);
+    setLinkedMemberNip(member.nip);
+    setLinkedMemberPlannedInstallationPower(member.plannedInstallationPower);
+    setLinkedMemberExistingInstallationPower(member.existingInstallationPower);
+    setLinkedMemberPlannedStoragePower(member.plannedStoragePower);
+    setLinkedMemberExistingStoragePower(member.existingStoragePower);
+    setLinkedMemberJoinDate(member.joinDate);
+    setLinkedMemberNote(member.note);
+    setLinkedMemberStatus(member.status);
+    setLinkedMemberModalOpen(true);
+  };
+
+  const saveLinkedMember = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedLinkedCoop) return;
+    if (!linkedMemberFullName.trim() || !linkedMemberPpeAddress.trim()) return;
+
+    const current = linkedMembersOverrides[selectedLinkedCoop.id]
+      ?? selectedLinkedCoop.members.map((member) => ({
+        id: member.id,
+        fullName: member.fullName,
+        ppeAddress: '',
+        nip: '',
+        plannedInstallationPower: '',
+        existingInstallationPower: '',
+        plannedStoragePower: '',
+        existingStoragePower: '',
+        joinDate: new Date().toISOString().slice(0, 10),
+        note: '',
+        status: member.status,
+      }));
+
+    const duplicate = current.find((member) =>
+      member.ppeAddress.trim().toLowerCase() === linkedMemberPpeAddress.trim().toLowerCase()
+      && member.id !== editingLinkedMemberId);
+    if (duplicate) return;
+
+    const nextMember: LinkedMemberFormData = {
+      id: editingLinkedMemberId ?? Date.now(),
+      fullName: linkedMemberFullName.trim(),
+      ppeAddress: linkedMemberPpeAddress.trim(),
+      nip: linkedMemberNip.trim(),
+      plannedInstallationPower: linkedMemberPlannedInstallationPower.trim(),
+      existingInstallationPower: linkedMemberExistingInstallationPower.trim(),
+      plannedStoragePower: linkedMemberPlannedStoragePower.trim(),
+      existingStoragePower: linkedMemberExistingStoragePower.trim(),
+      joinDate: linkedMemberJoinDate,
+      note: linkedMemberNote.trim(),
+      status: linkedMemberStatus,
+    };
+
+    const nextList = editingLinkedMemberId
+      ? current.map((member) => (member.id === editingLinkedMemberId ? nextMember : member))
+      : [...current, nextMember];
+
+    setLinkedMembersOverrides((prev) => ({ ...prev, [selectedLinkedCoop.id]: nextList }));
+    setLinkedMemberModalOpen(false);
+    resetLinkedMemberForm();
+  };
+
+  const removeLinkedMember = (memberId: number) => {
+    if (!selectedLinkedCoop) return;
+    const current = linkedMembersOverrides[selectedLinkedCoop.id]
+      ?? selectedLinkedCoop.members.map((member) => ({
+        id: member.id,
+        fullName: member.fullName,
+        ppeAddress: '',
+        nip: '',
+        plannedInstallationPower: '',
+        existingInstallationPower: '',
+        plannedStoragePower: '',
+        existingStoragePower: '',
+        joinDate: new Date().toISOString().slice(0, 10),
+        note: '',
+        status: member.status,
+      }));
+    setLinkedMembersOverrides((prev) => ({
+      ...prev,
+      [selectedLinkedCoop.id]: current.filter((member) => member.id !== memberId),
+    }));
   };
 
   const confirmPendingPoint = () => {
@@ -669,6 +819,70 @@ export default function MapaPolskiSection({
         onConfirm={confirmPendingPoint}
         onCancel={closePendingPointModal}
       />
+      {linkedMemberModalOpen ? (
+        <div className="modal-backdrop" onClick={() => { setLinkedMemberModalOpen(false); resetLinkedMemberForm(); }}>
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <h3>{editingLinkedMemberId ? 'Edytuj członka' : 'Dodaj członka'}</h3>
+            <form className="add-entry-form coop-member-form" onSubmit={saveLinkedMember}>
+              <label htmlFor="map-linked-member-full-name">
+                Imię Nazwisko / Nazwa
+                <input id="map-linked-member-full-name" value={linkedMemberFullName} onChange={(e) => setLinkedMemberFullName(e.target.value)} required />
+              </label>
+              <label htmlFor="map-linked-member-ppe-address">
+                Adres PPE
+                <input id="map-linked-member-ppe-address" value={linkedMemberPpeAddress} onChange={(e) => setLinkedMemberPpeAddress(e.target.value)} required />
+              </label>
+              <div className="coop-member-grid-2">
+                <label htmlFor="map-linked-member-nip">
+                  NIP (jeśli firma)
+                  <input id="map-linked-member-nip" value={linkedMemberNip} onChange={(e) => setLinkedMemberNip(e.target.value)} />
+                </label>
+                <label htmlFor="map-linked-member-planned-installation-power">
+                  Moc instalacji planowanej (kWp)
+                  <input id="map-linked-member-planned-installation-power" type="number" min="0" step="0.1" value={linkedMemberPlannedInstallationPower} onChange={(e) => setLinkedMemberPlannedInstallationPower(e.target.value)} />
+                </label>
+              </div>
+              <div className="coop-member-grid-2">
+                <label htmlFor="map-linked-member-existing-installation-power">
+                  Moc instalacji istniejącej (kWp)
+                  <input id="map-linked-member-existing-installation-power" type="number" min="0" step="0.1" value={linkedMemberExistingInstallationPower} onChange={(e) => setLinkedMemberExistingInstallationPower(e.target.value)} />
+                </label>
+                <label htmlFor="map-linked-member-planned-storage-power">
+                  Moc Magazynu Energii planowany (kWp)
+                  <input id="map-linked-member-planned-storage-power" type="number" min="0" step="0.1" value={linkedMemberPlannedStoragePower} onChange={(e) => setLinkedMemberPlannedStoragePower(e.target.value)} />
+                </label>
+              </div>
+              <div className="coop-member-grid-2">
+                <label htmlFor="map-linked-member-existing-storage-power">
+                  Moc Magazynu Energii istniejący (kWp)
+                  <input id="map-linked-member-existing-storage-power" type="number" min="0" step="0.1" value={linkedMemberExistingStoragePower} onChange={(e) => setLinkedMemberExistingStoragePower(e.target.value)} />
+                </label>
+                <label htmlFor="map-linked-member-status">
+                  Status
+                  <select id="map-linked-member-status" className="add-entry-select" value={linkedMemberStatus} onChange={(e) => setLinkedMemberStatus(e.target.value as 'aktywny' | 'nieaktywny')}>
+                    <option value="aktywny">Aktywny</option>
+                    <option value="nieaktywny">Nieaktywny</option>
+                  </select>
+                </label>
+              </div>
+              <label htmlFor="map-linked-member-join-date">
+                Data dołączenia / rejestracji
+                <input id="map-linked-member-join-date" type="date" value={linkedMemberJoinDate} onChange={(e) => setLinkedMemberJoinDate(e.target.value)} />
+              </label>
+              <label htmlFor="map-linked-member-note">
+                Notatka do członka
+                <input id="map-linked-member-note" value={linkedMemberNote} onChange={(e) => setLinkedMemberNote(e.target.value)} placeholder="Dodaj notatkę..." />
+              </label>
+              <div className="add-entry-actions">
+                <button type="button" className="primary-outline-btn" onClick={() => { setLinkedMemberModalOpen(false); resetLinkedMemberForm(); }}>
+                  Anuluj
+                </button>
+                <button type="submit" className="primary-btn">Zapisz</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
       <section className="panel">
         <div className="map-head">
           <h3>Interaktywna mapa Polski</h3>
@@ -823,13 +1037,29 @@ export default function MapaPolskiSection({
                   </section>
 
                   <section className="map-linked-section">
-                    <strong>Członkowie ({selectedLinkedMembers.length})</strong>
+                    <div className="map-linked-section-head">
+                      <strong>Członkowie ({selectedLinkedMembers.length})</strong>
+                      <button className="primary-btn" type="button" onClick={openAddLinkedMemberModal} disabled={!selectedLinkedCoop}>
+                        + Dodaj / edytuj członków
+                      </button>
+                    </div>
                     {selectedLinkedMembers.length ? (
                       <ul className="map-linked-list">
                         {selectedLinkedMembers.map((member) => (
                           <li key={member.id}>
-                            <span>{member.fullName}</span>
-                            <em>{member.status}</em>
+                            <div className="map-linked-member-content">
+                              <span>{member.fullName}</span>
+                              <em>{member.ppeAddress || 'Brak adresu PPE'}</em>
+                              <em>{member.status}</em>
+                            </div>
+                            <div className="map-linked-member-actions">
+                              <button type="button" className="table-action-btn" onClick={() => openEditLinkedMemberModal(member)}>
+                                Edytuj
+                              </button>
+                              <button type="button" className="table-action-btn danger" onClick={() => removeLinkedMember(member.id)}>
+                                Usuń
+                              </button>
+                            </div>
                           </li>
                         ))}
                       </ul>
