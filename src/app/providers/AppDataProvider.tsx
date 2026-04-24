@@ -10,7 +10,7 @@ import {
   listAllCooperatives,
   type CooperativeMemberFormInput,
 } from '@/services/cooperatives';
-import { listAllUsers, mapRoleToApi, updateUser } from '@/services/users';
+import { mapRoleToApi, updateUser } from '@/services/users';
 import type { AppDatabase, User } from '@/types/domain';
 import {
   appDatabaseWithSyncedCaregivers,
@@ -34,9 +34,6 @@ const PATHS_REQUIRING_FULL_COOPERATIVES = new Set<string>([
   '/my-plan',
 ]);
 
-/** Routes that read `db.caregivers` from AppData (synced from full `users`). */
-const PATHS_REQUIRING_FULL_USERS = new Set<string>(['/my-plan']);
-
 function normalizePathname(pathname: string): string {
   if (!pathname) return '/';
   return pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
@@ -48,7 +45,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const [db, setDbInternal] = useState<AppDatabase>(emptyAppDatabase);
   const [error, setError] = useState('');
-  const [usersRetryTick, setUsersRetryTick] = useState(0);
   const [coopsRetryTick, setCoopsRetryTick] = useState(0);
 
   const setDb = (
@@ -62,54 +58,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const coopsSyncedRef = useRef(false);
   const coopsInFlightRef = useRef(false);
-  const usersSyncedRef = useRef(false);
-  const usersInFlightRef = useRef(false);
   const normalizedPathname = normalizePathname(location.pathname);
-  const needsFullUsers = PATHS_REQUIRING_FULL_USERS.has(normalizedPathname);
   const needsFullCooperatives = PATHS_REQUIRING_FULL_COOPERATIVES.has(normalizedPathname);
 
   useEffect(() => {
     if (!currentUser) {
       coopsSyncedRef.current = false;
       coopsInFlightRef.current = false;
-      usersSyncedRef.current = false;
-      usersInFlightRef.current = false;
       setDbInternal(emptyAppDatabase);
     }
   }, [currentUser]);
-
-  useEffect(() => {
-    if (!authResolved || !currentUser) return;
-    if (!needsFullUsers) return;
-    if (usersSyncedRef.current || usersInFlightRef.current) return;
-
-    usersInFlightRef.current = true;
-    let cancelled = false;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    void (async () => {
-      try {
-        const users = await listAllUsers();
-        if (cancelled) return;
-        usersSyncedRef.current = true;
-        setDb((prev) => ({
-          ...prev,
-          users: users.length > 0 ? users : prev.users,
-        }));
-      } catch {
-        if (cancelled) return;
-        retryTimer = setTimeout(() => {
-          setUsersRetryTick((v) => v + 1);
-        }, 2500);
-      } finally {
-        usersInFlightRef.current = false;
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      if (retryTimer) clearTimeout(retryTimer);
-    };
-  }, [authResolved, currentUser, needsFullUsers, usersRetryTick]);
 
   useEffect(() => {
     if (!authResolved || !currentUser) return;

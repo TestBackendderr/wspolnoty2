@@ -1,5 +1,34 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Cooperative, User } from '@/types/domain';
+import { listCooperativesIdAndName, type CooperativeIdName } from '@/services/cooperatives';
+
+/** Lekki szkielet pod tabelę / karty — pełne GET /cooperatives nie jest potrzebne na /sales-plans. */
+function cooperativeStubFromIdName(c: CooperativeIdName): Cooperative {
+  return {
+    id: c.id,
+    name: c.name,
+    address: '',
+    voivodeship: '',
+    status: 'aktywna',
+    caregiverId: null,
+    plannedPower: 0,
+    installedPower: 0,
+    members: [],
+  };
+}
+import type { SalesPlanApiModel, SalesPlanEntryApi, SalesPlanNoteApi } from '@/services/salesPlans';
+import {
+  createSalesPlanEntry,
+  createSalesPlanShell,
+  deleteSalesPlanEntry,
+  getSalesPlanByCooperative,
+  listSalesPlans,
+  mapNotesToApiPayload,
+  normalizeSalesPlansListResponse,
+  parseSalesPlanResponse,
+  updateSalesPlanEntry,
+  updateSalesPlanTarget,
+} from '@/services/salesPlans';
 
 interface PlanySprzedazoweSectionProps {
   caregivers: User[];
@@ -55,7 +84,52 @@ type EntryDraft = {
   newNoteText: string;
 };
 
-const STORAGE_KEY = 'sales_plan_v3';
+function mapApiNote(n: SalesPlanNoteApi): PlanNote {
+  const ca = n.createdAt ?? '';
+  if (/^\d{4}-\d{2}-\d{2}T/.test(ca)) {
+    const d = new Date(ca);
+    return {
+      id: n.id,
+      text: n.text,
+      createdAt: d.toLocaleString('pl-PL', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    };
+  }
+  return { id: n.id, text: n.text, createdAt: ca };
+}
+
+function mapApiEntry(e: SalesPlanEntryApi): SalesPlanEntry {
+  const createdAt =
+    e.createdAt && /^\d{4}-\d{2}-\d{2}T/.test(e.createdAt) ? e.createdAt.slice(0, 10) : e.createdAt;
+  return {
+    id: e.id,
+    name: e.name,
+    ppeAddress: e.ppeAddress,
+    nip: e.nip ?? '',
+    plannedTurnover: e.plannedTurnover,
+    plannedInstallPower: e.plannedInstallPower,
+    existingInstallPower: e.existingInstallPower,
+    plannedStoragePower: e.plannedStoragePower,
+    existingStoragePower: e.existingStoragePower,
+    createdAt,
+    notes: (e.notes ?? []).map(mapApiNote),
+  };
+}
+
+function mapApiModelToSalesPlan(p: SalesPlanApiModel): SalesPlan {
+  return {
+    cooperativeId: p.cooperativeId,
+    quarterYear: p.quarterYear,
+    targetKWh: p.targetKWh,
+    planned: p.planned.map(mapApiEntry),
+    realized: p.realized.map(mapApiEntry),
+  };
+}
 
 function formatQuarter(quarter: number, year: number): string {
   return `Q${quarter} ${year}`;
@@ -130,50 +204,118 @@ export default function PlanySprzedazoweSection({
   const [targetDraft, setTargetDraft] = useState('0');
   const [addPlanOpen, setAddPlanOpen] = useState(false);
   const [selectedCoopForPlan, setSelectedCoopForPlan] = useState('');
+  const [addPlanCoopOptions, setAddPlanCoopOptions] = useState<CooperativeIdName[]>([]);
+  const [addPlanCoopsLoading, setAddPlanCoopsLoading] = useState(false);
+  const [addPlanCoopsError, setAddPlanCoopsError] = useState('');
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [plansError, setPlansError] = useState('');
+  const [mutationError, setMutationError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [adminCoopSummaries, setAdminCoopSummaries] = useState<CooperativeIdName[]>([]);
+  const [adminCoopListLoading, setAdminCoopListLoading] = useState(false);
+  const [adminCoopListError, setAdminCoopListError] = useState('');
+
+  const cooperativesForUi = useMemo(() => {
+    if (scope === 'all') {
+      return adminCoopSummaries.map(cooperativeStubFromIdName);
+    }
+    return cooperatives.filter((coop) => coop.caregiverId === currentUser?.id);
+  }, [adminCoopSummaries, cooperatives, currentUser?.id, scope]);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as SalesPlan[];
-      if (Array.isArray(parsed)) setPlans(parsed);
-    } catch {
+    if (!currentUser || scope !== 'all') {
+      setAdminCoopSummaries([]);
+      setAdminCoopListError('');
+      setAdminCoopListLoading(false);
+      return;
+    }
+    setAdminCoopListLoading(true);
+    setAdminCoopListError('');
+    void (async () => {
+      try {
+        const list = await listCooperativesIdAndName();
+        setAdminCoopSummaries(list);
+      } catch {
+        setAdminCoopListError('Nie udało się pobrać listy spółdzielni.');
+        setAdminCoopSummaries([]);
+      } finally {
+        setAdminCoopListLoading(false);
+      }
+    })();
+  }, [currentUser, scope]);
+
+  const loadPlans = useCallback(async (quarterYear: string, coopIds: number[]) => {
+    if (!coopIds.length) {
       setPlans([]);
+      return;
+    }
+    setPlansLoading(true);
+    setPlansError('');
+    try {
+      const raw = await listSalesPlans({ quarterYear, cooperativeIds: coopIds });
+      const items = normalizeSalesPlansListResponse(raw).map(mapApiModelToSalesPlan);
+      setPlans(items);
+    } catch {
+      setPlansError('Nie udało się pobrać planów sprzedaży.');
+      setPlans([]);
+    } finally {
+      setPlansLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(plans));
-  }, [plans]);
+    if (!currentUser) return;
+    if (scope === 'all' && adminCoopListLoading) return;
+    const ids = cooperativesForUi.map((c) => c.id).filter((id) => Number.isInteger(id) && id > 0);
+    void loadPlans(selectedQuarter, ids);
+  }, [
+    adminCoopListLoading,
+    cooperativesForUi,
+    currentUser,
+    loadPlans,
+    scope,
+    selectedQuarter,
+  ]);
 
-  const visibleCooperatives = useMemo(() => {
-    const base = isAdmin && scope === 'all'
-      ? [...cooperatives]
-      : cooperatives.filter((coop) => coop.caregiverId === currentUser?.id);
+  useEffect(() => {
+    if (!addPlanOpen) return;
+    setMutationError('');
+    setSelectedCoopForPlan('');
+    setAddPlanCoopsError('');
+    if (isAdmin && scope === 'all' && adminCoopSummaries.length > 0) {
+      setAddPlanCoopOptions(adminCoopSummaries);
+      setAddPlanCoopsLoading(false);
+      return;
+    }
+    setAddPlanCoopsLoading(true);
+    void (async () => {
+      try {
+        const list = await listCooperativesIdAndName();
+        setAddPlanCoopOptions(list);
+      } catch {
+        setAddPlanCoopsError('Nie udało się pobrać listy spółdzielni.');
+        setAddPlanCoopOptions([]);
+      } finally {
+        setAddPlanCoopsLoading(false);
+      }
+    })();
+  }, [addPlanOpen, adminCoopSummaries, isAdmin, scope]);
 
-    if (base.length > 0) return base;
-
-    return [{
-      id: -1,
-      name: 'Spółdzielnia testowa',
-      address: 'ul. Testowa 1',
-      voivodeship: 'Wielkopolskie',
-      status: 'w trakcie tworzenia' as const,
-      caregiverId: currentUser?.id ?? null,
-      plannedPower: 0,
-      installedPower: 0,
-      members: [],
-      supervisor: currentUser
-        ? {
-            id: currentUser.id,
-            name: currentUser.name,
-            surname: 'Test',
-            email: currentUser.email,
-            phoneNumber: currentUser.phone ?? '',
-          }
-        : undefined,
-    }];
-  }, [cooperatives, currentUser, isAdmin, scope]);
+  const resolvePlanAfterMutation = async (
+    raw: unknown,
+    coopId: number,
+    quarterYear: string,
+  ): Promise<SalesPlan> => {
+    if (raw != null && typeof raw === 'object' && 'cooperativeId' in raw) {
+      try {
+        return mapApiModelToSalesPlan(parseSalesPlanResponse(raw));
+      } catch {
+        /* GET ponizej */
+      }
+    }
+    const fresh = await getSalesPlanByCooperative(coopId, quarterYear);
+    return mapApiModelToSalesPlan(parseSalesPlanResponse(fresh));
+  };
 
   const quarterOptions = useMemo(() => getAvailableQuartersForUser(plans), [plans]);
 
@@ -205,30 +347,52 @@ export default function PlanySprzedazoweSection({
     });
   };
 
-  const openManage = (coopId: number, quarterYear: string) => {
-    const plan = getPlan(coopId, quarterYear);
-    upsertPlan(plan);
-    setTargetDraft(String(plan.targetKWh));
-    setManage({ coopId, quarterYear });
+  const openManage = async (coopId: number, quarterYear: string) => {
+    setMutationError('');
+    try {
+      const raw = await getSalesPlanByCooperative(coopId, quarterYear);
+      const plan = mapApiModelToSalesPlan(parseSalesPlanResponse(raw));
+      upsertPlan(plan);
+      setTargetDraft(String(plan.targetKWh));
+      setManage({ coopId, quarterYear });
+    } catch {
+      setMutationError('Nie udało się otworzyć planu.');
+    }
   };
 
-  const createPlanByAdmin = () => {
+  const createPlanByAdmin = async () => {
     const coopId = Number(selectedCoopForPlan);
-    if (!Number.isInteger(coopId)) return;
-    openManage(coopId, selectedQuarter);
-    setAddPlanOpen(false);
-    setSelectedCoopForPlan('');
+    if (!Number.isInteger(coopId) || coopId < 1) return;
+    setMutationError('');
+    setSaving(true);
+    try {
+      await createSalesPlanShell({ cooperativeId: coopId, quarterYear: selectedQuarter });
+      const ids = [...new Set([
+        ...cooperativesForUi.map((c) => c.id).filter((id) => id > 0),
+        coopId,
+      ])];
+      await loadPlans(selectedQuarter, ids);
+      setAddPlanOpen(false);
+      setSelectedCoopForPlan('');
+      await openManage(coopId, selectedQuarter);
+    } catch {
+      setMutationError('Nie udało się utworzyć planu.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const rows = useMemo(() => {
-    return visibleCooperatives.map((coop) => {
+    return cooperativesForUi.map((coop) => {
       const plan = getPlan(coop.id, selectedQuarter);
       const totalRealized = plan.realized.reduce((sum, entry) => sum + (entry.plannedTurnover || 0), 0);
       const progress = plan.targetKWh > 0 ? Math.round((totalRealized / plan.targetKWh) * 100) : 0;
       const caregiver =
         coop.supervisor
           ? `${coop.supervisor.name} ${coop.supervisor.surname}`.trim()
-          : caregivers.find((c) => c.id === coop.caregiverId)?.name ?? '—';
+          : currentUser && coop.caregiverId === currentUser.id
+            ? currentUser.name
+            : caregivers.find((c) => c.id === coop.caregiverId)?.name ?? '—';
       return {
         coop,
         caregiver,
@@ -237,20 +401,31 @@ export default function PlanySprzedazoweSection({
         progress,
       };
     });
-  }, [caregivers, plans, selectedQuarter, visibleCooperatives]);
+  }, [caregivers, cooperativesForUi, currentUser, plans, selectedQuarter]);
 
   const managedCoop = manage
-    ? visibleCooperatives.find((coop) => coop.id === manage.coopId) ?? null
+    ? cooperativesForUi.find((coop) => coop.id === manage.coopId) ?? null
     : null;
   const managedPlan = manage && managedCoop ? getPlan(manage.coopId, manage.quarterYear) : null;
 
-  const saveTarget = () => {
+  const saveTarget = async () => {
     if (!manage || !managedPlan) return;
-    const next = {
-      ...managedPlan,
-      targetKWh: Math.max(0, toNumber(targetDraft)),
-    };
-    upsertPlan(next);
+    setMutationError('');
+    setSaving(true);
+    try {
+      const raw = await updateSalesPlanTarget(
+        manage.coopId,
+        manage.quarterYear,
+        Math.max(0, toNumber(targetDraft)),
+      );
+      const plan = await resolvePlanAfterMutation(raw, manage.coopId, manage.quarterYear);
+      upsertPlan(plan);
+      setTargetDraft(String(plan.targetKWh));
+    } catch {
+      setMutationError('Nie udało się zapisać celu.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openEntryModal = (type: EntryType, entryId?: string) => {
@@ -278,41 +453,51 @@ export default function PlanySprzedazoweSection({
     });
   };
 
-  const saveEntry = () => {
-    if (!entryModal || !managedPlan) return;
-    const nextEntry: SalesPlanEntry = {
-      id: entryModal.id ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      name: entryModal.name.trim(),
-      ppeAddress: entryModal.ppeAddress.trim(),
-      nip: entryModal.nip.trim(),
-      plannedTurnover: toNumber(entryModal.plannedTurnover),
-      plannedInstallPower: toNumber(entryModal.plannedInstallPower),
-      existingInstallPower: toNumber(entryModal.existingInstallPower),
-      plannedStoragePower: toNumber(entryModal.plannedStoragePower),
-      existingStoragePower: toNumber(entryModal.existingStoragePower),
-      createdAt: entryModal.createdAt,
-      notes: entryModal.notes,
-    };
-    const key = entryModal.type === 'planned' ? 'planned' : 'realized';
-    const existingList = managedPlan[key];
-    const idx = existingList.findIndex((entry) => entry.id === nextEntry.id);
-    const nextList = idx >= 0
-      ? existingList.map((entry) => (entry.id === nextEntry.id ? nextEntry : entry))
-      : [...existingList, nextEntry];
-    upsertPlan({
-      ...managedPlan,
-      [key]: nextList,
-    });
-    setEntryModal(null);
+  const saveEntry = async () => {
+    if (!entryModal || !managedPlan || !manage) return;
+    setMutationError('');
+    setSaving(true);
+    try {
+      const notesPayload = mapNotesToApiPayload(entryModal.notes);
+      const basePayload = {
+        kind: entryModal.type,
+        name: entryModal.name.trim(),
+        ppeAddress: entryModal.ppeAddress.trim(),
+        ...(entryModal.nip.trim() ? { nip: entryModal.nip.trim() } : {}),
+        plannedTurnover: toNumber(entryModal.plannedTurnover),
+        plannedInstallPower: toNumber(entryModal.plannedInstallPower),
+        existingInstallPower: toNumber(entryModal.existingInstallPower),
+        plannedStoragePower: toNumber(entryModal.plannedStoragePower),
+        existingStoragePower: toNumber(entryModal.existingStoragePower),
+        createdAt: entryModal.createdAt,
+        ...(notesPayload.length > 0 ? { notes: notesPayload } : {}),
+      };
+      const raw = entryModal.id
+        ? await updateSalesPlanEntry(manage.coopId, manage.quarterYear, entryModal.id, basePayload)
+        : await createSalesPlanEntry(manage.coopId, manage.quarterYear, basePayload);
+      const plan = await resolvePlanAfterMutation(raw, manage.coopId, manage.quarterYear);
+      upsertPlan(plan);
+      setEntryModal(null);
+    } catch {
+      setMutationError('Nie udało się zapisać wpisu.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const deleteEntry = (type: EntryType, entryId: string) => {
-    if (!managedPlan) return;
-    const key = type === 'planned' ? 'planned' : 'realized';
-    upsertPlan({
-      ...managedPlan,
-      [key]: managedPlan[key].filter((entry) => entry.id !== entryId),
-    });
+  const deleteEntry = async (_type: EntryType, entryId: string) => {
+    if (!managedPlan || !manage) return;
+    setMutationError('');
+    setSaving(true);
+    try {
+      const raw = await deleteSalesPlanEntry(manage.coopId, manage.quarterYear, entryId);
+      const plan = await resolvePlanAfterMutation(raw, manage.coopId, manage.quarterYear);
+      upsertPlan(plan);
+    } catch {
+      setMutationError('Nie udało się usunąć wpisu.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const addNoteToEntryDraft = () => {
@@ -320,7 +505,7 @@ export default function PlanySprzedazoweSection({
     const text = entryModal.newNoteText.trim();
     if (!text) return;
     const note: PlanNote = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      id: `temp-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       text,
       createdAt: `${new Date().toLocaleDateString('pl-PL')} ${new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`,
     };
@@ -332,6 +517,7 @@ export default function PlanySprzedazoweSection({
   };
 
   const title = scope === 'mine' ? 'Mój plan sprzedaży' : 'Plany sprzedażowe';
+  const listBlocking = plansLoading || (scope === 'all' && adminCoopListLoading);
 
   return (
     <section className="panel sales-plan-panel">
@@ -355,7 +541,12 @@ export default function PlanySprzedazoweSection({
         </div>
       </div>
 
-      {scope === 'all' ? (
+      {plansError ? <p className="email-warning" style={{ marginBottom: '0.75rem' }}>{plansError}</p> : null}
+      {adminCoopListError ? <p className="email-warning" style={{ marginBottom: '0.75rem' }}>{adminCoopListError}</p> : null}
+
+      {listBlocking ? (
+        <p style={{ padding: '1rem', color: '#9ca3af' }}>Ładowanie…</p>
+      ) : scope === 'all' ? (
         <div className="table-wrapper">
           <table className="sales-plan-table">
             <thead>
@@ -377,7 +568,7 @@ export default function PlanySprzedazoweSection({
                   <td>{row.totalRealized} kWh</td>
                   <td>{row.progress}%</td>
                   <td>
-                    <button className="primary-btn sales-plan-manage-btn" type="button" onClick={() => openManage(row.coop.id, selectedQuarter)}>
+                    <button className="primary-btn sales-plan-manage-btn" type="button" onClick={() => void openManage(row.coop.id, selectedQuarter)}>
                       Zarządzaj
                     </button>
                   </td>
@@ -410,7 +601,7 @@ export default function PlanySprzedazoweSection({
                 <div>Planowane: <strong>{getPlan(row.coop.id, selectedQuarter).planned.reduce((sum, entry) => sum + entry.plannedTurnover, 0)} kWh</strong> ({getPlan(row.coop.id, selectedQuarter).planned.length})</div>
                 <div>Zrealizowane: <strong>{row.totalRealized} kWh</strong> ({getPlan(row.coop.id, selectedQuarter).realized.length})</div>
               </div>
-              <button className="primary-btn" type="button" onClick={() => openManage(row.coop.id, selectedQuarter)}>
+              <button className="primary-btn" type="button" onClick={() => void openManage(row.coop.id, selectedQuarter)}>
                 Szczegóły planu
               </button>
             </article>
@@ -423,14 +614,15 @@ export default function PlanySprzedazoweSection({
           <div className="modal-card-sales-plan-modal-v2" onClick={(event) => event.stopPropagation()}>
             <div className="sales-plan-modal-head">
               <h3>{managedCoop.name} - {manage.quarterYear}</h3>
-              <button type="button" onClick={() => { setManage(null); setEntryModal(null); }}>✕</button>
+              <button type="button" onClick={() => { setManage(null); setEntryModal(null); setMutationError(''); }}>✕</button>
             </div>
+            {mutationError ? <p className="email-warning" style={{ marginBottom: 12 }}>{mutationError}</p> : null}
             <div className="sales-plan-target-box">
               <div className="sales-plan-target-edit">
                 <label>Nadaj cel sprzedażowy (kWh)</label>
                 <div className="sales-plan-target-actions">
-                  <input type="number" value={targetDraft} onChange={(event) => setTargetDraft(event.target.value)} />
-                  <button className="primary-btn" type="button" onClick={saveTarget}>Zapisz cel</button>
+                  <input type="number" value={targetDraft} onChange={(event) => setTargetDraft(event.target.value)} disabled={saving} />
+                  <button className="primary-btn" type="button" onClick={() => void saveTarget()} disabled={saving}>Zapisz cel</button>
                 </div>
               </div>
               <div className="sales-plan-target-progress">
@@ -452,7 +644,7 @@ export default function PlanySprzedazoweSection({
                 <section key={column.type} className="sales-plan-column-v2">
                   <div className="sales-plan-column-head">
                     <h4>{column.title} <span>({column.data.length})</span></h4>
-                    <button className="primary-btn" type="button" onClick={() => openEntryModal(column.type)}>Dodaj</button>
+                    <button className="primary-btn" type="button" onClick={() => openEntryModal(column.type)} disabled={saving}>Dodaj</button>
                   </div>
                   <div className="table-wrapper">
                     <table className="sales-plan-entries-table">
@@ -483,8 +675,8 @@ export default function PlanySprzedazoweSection({
                             <td>{entry.existingStoragePower} kWp</td>
                             <td>{entry.createdAt}</td>
                             <td>
-                              <button className="table-action-btn" type="button" onClick={() => openEntryModal(column.type, entry.id)}>Edytuj</button>
-                              <button className="table-action-btn danger" type="button" onClick={() => deleteEntry(column.type, entry.id)}>Usuń</button>
+                              <button className="table-action-btn" type="button" onClick={() => openEntryModal(column.type, entry.id)} disabled={saving}>Edytuj</button>
+                              <button className="table-action-btn danger" type="button" onClick={() => void deleteEntry(column.type, entry.id)} disabled={saving}>Usuń</button>
                             </td>
                           </tr>
                         )) : (
@@ -503,12 +695,21 @@ export default function PlanySprzedazoweSection({
       ) : null}
 
       {addPlanOpen ? (
-        <div className="modal-backdrop" onClick={() => setAddPlanOpen(false)}>
+        <div
+          className="modal-backdrop"
+          onClick={() => {
+            setAddPlanOpen(false);
+            setSelectedCoopForPlan('');
+            setAddPlanCoopsError('');
+          }}
+        >
           <div className="modal-card" onClick={(event) => event.stopPropagation()}>
             <h3>Dodaj plan sprzedażowy</h3>
             <p className="map-none" style={{ marginBottom: 12 }}>
               Wybierz spółdzielnię, aby nadać plan sprzedażowy opiekunowi na wybrany kwartał.
             </p>
+            {mutationError ? <p className="email-warning" style={{ marginBottom: 12 }}>{mutationError}</p> : null}
+            {addPlanCoopsError ? <p className="email-warning" style={{ marginBottom: 12 }}>{addPlanCoopsError}</p> : null}
             <label htmlFor="sales-plan-coop-select" style={{ display: 'grid', gap: 6 }}>
               Spółdzielnia
               <select
@@ -516,18 +717,34 @@ export default function PlanySprzedazoweSection({
                 className="add-entry-select"
                 value={selectedCoopForPlan}
                 onChange={(event) => setSelectedCoopForPlan(event.target.value)}
+                disabled={addPlanCoopsLoading || addPlanCoopOptions.length === 0}
               >
-                <option value="">— wybierz spółdzielnię —</option>
-                {visibleCooperatives.map((coop) => (
+                <option value="">
+                  {addPlanCoopsLoading ? 'Ładowanie listy…' : '— wybierz spółdzielnię —'}
+                </option>
+                {addPlanCoopOptions.map((coop) => (
                   <option key={coop.id} value={coop.id}>{coop.name}</option>
                 ))}
               </select>
             </label>
             <div className="sales-plan-entry-buttons" style={{ marginTop: 14 }}>
-              <button className="primary-outline-btn" type="button" onClick={() => setAddPlanOpen(false)}>
+              <button
+                className="primary-outline-btn"
+                type="button"
+                onClick={() => {
+                  setAddPlanOpen(false);
+                  setSelectedCoopForPlan('');
+                  setAddPlanCoopsError('');
+                }}
+              >
                 Anuluj
               </button>
-              <button className="primary-btn" type="button" disabled={!selectedCoopForPlan} onClick={createPlanByAdmin}>
+              <button
+                className="primary-btn"
+                type="button"
+                disabled={!selectedCoopForPlan || saving || addPlanCoopsLoading || addPlanCoopOptions.length === 0}
+                onClick={() => void createPlanByAdmin()}
+              >
                 Utwórz plan
               </button>
             </div>
@@ -536,14 +753,15 @@ export default function PlanySprzedazoweSection({
       ) : null}
 
       {entryModal ? (
-        <div className="modal-backdrop" onClick={() => setEntryModal(null)}>
+        <div className="modal-backdrop" onClick={() => { setEntryModal(null); setMutationError(''); }}>
           <div className="modal-card sales-plan-entry-modal" onClick={(event) => event.stopPropagation()}>
             <h3>{entryModal.id ? 'Edytuj wpis' : (entryModal.type === 'planned' ? 'Nowy wpis planowany' : 'Nowy wpis zrealizowany')}</h3>
+            {mutationError ? <p className="email-warning" style={{ marginBottom: 12 }}>{mutationError}</p> : null}
             <form
               className="sales-plan-entry-grid"
               onSubmit={(event) => {
                 event.preventDefault();
-                saveEntry();
+                void saveEntry();
               }}
             >
               <label>
@@ -609,7 +827,7 @@ export default function PlanySprzedazoweSection({
                 <button type="button" className="primary-outline-btn" onClick={() => setEntryModal(null)}>
                   Anuluj
                 </button>
-                <button type="submit" className="primary-btn">
+                <button type="submit" className="primary-btn" disabled={saving}>
                   Zapisz wpis
                 </button>
               </div>

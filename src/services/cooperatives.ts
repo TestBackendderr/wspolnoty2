@@ -405,6 +405,16 @@ export async function listMapPoints(): Promise<MapPointWithCoopId[]> {
   return apiRequest<MapPointWithCoopId[]>('/cooperatives/map-points');
 }
 
+/** GET /cooperatives/id-name — tylko id i nazwa; ADMIN: wszystkie, OPIEKUN: wg createdById. */
+export interface CooperativeIdName {
+  id: number;
+  name: string;
+}
+
+export async function listCooperativesIdAndName(): Promise<CooperativeIdName[]> {
+  return apiRequest<CooperativeIdName[]>('/cooperatives/id-name');
+}
+
 /** Loads every cooperative via repeated paginated GET /cooperatives calls. */
 export async function listAllCooperatives(limitPerPage = 100): Promise<Cooperative[]> {
   const all: Cooperative[] = [];
