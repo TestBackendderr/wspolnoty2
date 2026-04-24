@@ -420,7 +420,7 @@ export default function PlanySprzedazoweSection({
 
       {manage && managedCoop && managedPlan ? (
         <div className="modal-backdrop" onClick={() => { setManage(null); setEntryModal(null); }}>
-          <div className="modal-card sales-plan-modal-v2" onClick={(event) => event.stopPropagation()}>
+          <div className="modal-card-sales-plan-modal-v2" onClick={(event) => event.stopPropagation()}>
             <div className="sales-plan-modal-head">
               <h3>{managedCoop.name} - {manage.quarterYear}</h3>
               <button type="button" onClick={() => { setManage(null); setEntryModal(null); }}>✕</button>
