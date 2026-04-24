@@ -12,6 +12,157 @@ interface CooperativeCreatedBy {
 
 export type { CooperativeHistoryItem } from '@/types/domain';
 
+/** API `MemberStatus` (Prisma). */
+export type CooperativeMemberStatusApi = 'AKTYWNY' | 'NIEAKTYWNY';
+
+export interface CooperativeMemberFormInput {
+  fullName: string;
+  ppeAddress: string;
+  nip: string;
+  plannedInstallationPower: string;
+  existingInstallationPower: string;
+  plannedStoragePower: string;
+  existingStoragePower: string;
+  joinDate: string;
+  note: string;
+  status: 'aktywny' | 'nieaktywny';
+}
+
+/** Body shape aligned with `CooperativeMemberInputDto`. */
+export interface CooperativeMemberApiPayload {
+  name: string;
+  ppeAddress: string;
+  nip?: string;
+  plannedInstallationPowerKwp?: number;
+  existingInstallationPowerKwp?: number;
+  plannedEnergyStoragePowerKwp?: number;
+  existingEnergyStoragePowerKwp?: number;
+  status?: CooperativeMemberStatusApi;
+  joinOrRegistrationDate: string;
+  note?: string;
+}
+
+export function cooperativeMemberFormToPayload(
+  m: CooperativeMemberFormInput,
+): CooperativeMemberApiPayload {
+  const parseOptNum = (v: string): number | undefined => {
+    const t = v.trim();
+    if (t === '') return undefined;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const nip = m.nip.trim();
+  const note = m.note.trim();
+  const plannedInstallationPowerKwp = parseOptNum(m.plannedInstallationPower);
+  const existingInstallationPowerKwp = parseOptNum(m.existingInstallationPower);
+  const plannedEnergyStoragePowerKwp = parseOptNum(m.plannedStoragePower);
+  const existingEnergyStoragePowerKwp = parseOptNum(m.existingStoragePower);
+  return {
+    name: m.fullName.trim(),
+    ppeAddress: m.ppeAddress.trim(),
+    ...(nip ? { nip } : {}),
+    ...(plannedInstallationPowerKwp !== undefined ? { plannedInstallationPowerKwp } : {}),
+    ...(existingInstallationPowerKwp !== undefined ? { existingInstallationPowerKwp } : {}),
+    ...(plannedEnergyStoragePowerKwp !== undefined ? { plannedEnergyStoragePowerKwp } : {}),
+    ...(existingEnergyStoragePowerKwp !== undefined ? { existingEnergyStoragePowerKwp } : {}),
+    status: m.status === 'aktywny' ? 'AKTYWNY' : 'NIEAKTYWNY',
+    joinOrRegistrationDate: m.joinDate,
+    ...(note ? { note } : {}),
+  };
+}
+
+/** Map domain members to the form shape used in UI (map + spółdzielnie modals). */
+export function cooperativeDomainMembersToForms(
+  members: Cooperative['members'],
+): CooperativeMemberFormInput[] {
+  return (members ?? []).map((m) => ({
+    fullName: m.fullName,
+    ppeAddress: m.ppeAddress ?? '',
+    nip: m.nip ?? '',
+    plannedInstallationPower:
+      m.plannedInstallationPowerKwp != null ? String(m.plannedInstallationPowerKwp) : '',
+    existingInstallationPower:
+      m.existingInstallationPowerKwp != null ? String(m.existingInstallationPowerKwp) : '',
+    plannedStoragePower:
+      m.plannedEnergyStoragePowerKwp != null ? String(m.plannedEnergyStoragePowerKwp) : '',
+    existingStoragePower:
+      m.existingEnergyStoragePowerKwp != null ? String(m.existingEnergyStoragePowerKwp) : '',
+    joinDate: m.joinOrRegistrationDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+    note: m.note ?? '',
+    status: m.status,
+  }));
+}
+
+export function memberListFormsToSortedPayloads(
+  members: CooperativeMemberFormInput[],
+): CooperativeMemberApiPayload[] {
+  return members
+    .filter((m) => m.fullName.trim() && m.ppeAddress.trim())
+    .map((m) => cooperativeMemberFormToPayload(m))
+    .sort((a, b) => `${a.name}\0${a.ppeAddress}`.localeCompare(`${b.name}\0${b.ppeAddress}`, 'pl'));
+}
+
+type CooperativesApiMember =
+  | {
+      id: number;
+      cooperativeId?: number;
+      name: string;
+      ppeAddress: string;
+      nip?: string | null;
+      plannedInstallationPowerKwp?: number | null;
+      existingInstallationPowerKwp?: number | null;
+      plannedEnergyStoragePowerKwp?: number | null;
+      existingEnergyStoragePowerKwp?: number | null;
+      status: string;
+      joinOrRegistrationDate?: string;
+      note?: string | null;
+    }
+  | {
+      userId: number;
+      cooperativeId: number;
+      status: string;
+      createdAt: string;
+      user: { id: number; name: string; surname: string };
+    };
+
+function isLegacyCooperativeMember(
+  m: CooperativesApiMember,
+): m is Extract<CooperativesApiMember, { userId: number }> {
+  return 'user' in m && m.user != null;
+}
+
+function mapMemberStatusFromApi(status: string): Cooperative['members'][number]['status'] {
+  return status === 'AKTYWNY' ? 'aktywny' : 'nieaktywny';
+}
+
+function mapCooperativeMemberFromApi(m: CooperativesApiMember): Cooperative['members'][number] {
+  if (isLegacyCooperativeMember(m)) {
+    return {
+      id: m.userId,
+      fullName: `${m.user.name} ${m.user.surname}`.trim(),
+      status: mapMemberStatusFromApi(m.status),
+    };
+  }
+  const join = m.joinOrRegistrationDate;
+  return {
+    id: m.id,
+    fullName: m.name,
+    ppeAddress: m.ppeAddress,
+    nip: m.nip ?? null,
+    plannedInstallationPowerKwp: m.plannedInstallationPowerKwp ?? null,
+    existingInstallationPowerKwp: m.existingInstallationPowerKwp ?? null,
+    plannedEnergyStoragePowerKwp: m.plannedEnergyStoragePowerKwp ?? null,
+    existingEnergyStoragePowerKwp: m.existingEnergyStoragePowerKwp ?? null,
+    status: mapMemberStatusFromApi(m.status),
+    joinOrRegistrationDate: join
+      ? typeof join === 'string'
+        ? join
+        : new Date(join as unknown as string).toISOString()
+      : undefined,
+    note: m.note ?? null,
+  };
+}
+
 interface CooperativesApiItem {
   id: number;
   name: string;
@@ -39,13 +190,7 @@ interface CooperativesApiItem {
     region: string;
   }>;
   registrationDate?: string | null;
-  members?: Array<{
-    userId: number;
-    cooperativeId: number;
-    status: string;
-    createdAt: string;
-    user: { id: number; name: string; surname: string };
-  }>;
+  members?: CooperativesApiMember[];
   mapPoint?: MapPointData | null;
   createdAt?: string;
   updatedAt?: string;
@@ -58,11 +203,6 @@ interface PaginatedCooperativesResponse {
   page: number;
   limit: number;
   totalPages: number;
-}
-
-interface CreateCooperativeMember {
-  userId: number;
-  status?: string;
 }
 
 export interface MapPointInput {
@@ -91,7 +231,7 @@ interface CreateCooperativePayload {
   supervisorId: number;
   registrationDate: string;
   areaIds?: number[];
-  members?: CreateCooperativeMember[];
+  members?: CooperativeMemberApiPayload[];
   mapPoint?: MapPointInput;
 }
 
@@ -108,7 +248,7 @@ interface UpdateCooperativePayload {
   registrationDate?: string;
   status?: CooperativeApiStatus;
   areaIds?: number[];
-  members?: CreateCooperativeMember[];
+  members?: CooperativeMemberApiPayload[];
 }
 
 export interface ListCooperativesParams {
@@ -187,11 +327,7 @@ function mapCooperativeFromApi(item: CooperativesApiItem): Cooperative {
       ...area,
       region: toDisplayRegion(area.region),
     })),
-    members: (item.members ?? []).map((member) => ({
-      id: member.userId,
-      fullName: `${member.user.name} ${member.user.surname}`.trim(),
-      status: member.status === 'AKTYWNY' ? 'aktywny' : 'nieaktywny',
-    })),
+    members: (item.members ?? []).map(mapCooperativeMemberFromApi),
     mapPoint: item.mapPoint ?? null,
     history: item.history,
   };
@@ -259,6 +395,10 @@ export interface MapPointWithCoopId {
   cooperativeId: number;
   createdAt: string;
   updatedAt: string;
+  /** Kolor markera na mapie (np. kolor opiekuna). */
+  color?: string;
+  /** Zwracane przez backend — czy bieżący użytkownik może edytować spółdzielnię przy tym punkcie. */
+  canEdit?: boolean;
 }
 
 export async function listMapPoints(): Promise<MapPointWithCoopId[]> {

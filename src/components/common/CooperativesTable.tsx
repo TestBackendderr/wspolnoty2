@@ -139,8 +139,8 @@ export default function CooperativesTable({
               <td>{coop.name}</td>
               <td>{coop.voivodeship}</td>
               <td>{coop.status}</td>
-              <td>{coop.plannedPower} kWp</td>
-              <td>{coop.installedPower} kWp</td>
+              <td>{coop.plannedPower} kW</td>
+              <td>{coop.installedPower} kW</td>
               {showActions ? (
                 <td>
                   <div style={{ display: 'flex', gap: '6px' }}>

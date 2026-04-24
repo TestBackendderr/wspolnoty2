@@ -10,9 +10,11 @@ export interface AppDataContextValue {
   clearError: () => void;
   handleAddCooperative: (values: AddEntryValues) => Promise<void>;
   handleDeleteCooperative: (coopId: number) => void;
+  /** Po zapisie spółdzielni (np. z /my-cooperatives) — ponowne pobranie z API i merge do stanu. */
+  refreshCooperativeById: (id: number) => Promise<void>;
   handleUpdateMyProfile: (
-    payload: Pick<User, 'name' | 'email' | 'phone' | 'password'>,
-  ) => void;
+    payload: Pick<User, 'name' | 'email' | 'phone' | 'password'> & { color: string },
+  ) => Promise<void>;
   handleSetVoivodeshipLead: (
     voivodeshipId: string,
     caregiverId: number | null,

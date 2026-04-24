@@ -17,13 +17,23 @@ export interface User {
   name: string;
   phone?: string;
   isBlocked?: boolean;
+  color?: string;
   notifications: NotificationItem[];
 }
 
 export interface CooperativeMember {
   id: number;
+  /** Imię i nazwisko lub nazwa firmy (API: `name`). */
   fullName: string;
+  ppeAddress?: string;
+  nip?: string | null;
+  plannedInstallationPowerKwp?: number | null;
+  existingInstallationPowerKwp?: number | null;
+  plannedEnergyStoragePowerKwp?: number | null;
+  existingEnergyStoragePowerKwp?: number | null;
   status: 'aktywny' | 'nieaktywny';
+  joinOrRegistrationDate?: string;
+  note?: string | null;
 }
 
 export interface CooperativeUserRef {

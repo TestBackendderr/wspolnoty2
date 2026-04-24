@@ -30,6 +30,26 @@ const ROLE_FILTER_OPTIONS: { label: string; value: ApiUserRole | '' }[] = [
   { label: 'Opiekun', value: 'OPIEKUN' },
 ];
 
+const USER_COLORS_STORAGE_KEY = 'user_colors_v1';
+const DEFAULT_USER_COLOR = '#10b981';
+
+function readUserColorsFromStorage(): Record<number, string> {
+  try {
+    const raw = localStorage.getItem(USER_COLORS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    return Object.entries(parsed).reduce<Record<number, string>>((acc, [key, value]) => {
+      const id = Number(key);
+      if (Number.isInteger(id) && id > 0 && typeof value === 'string' && value.trim()) {
+        acc[id] = value;
+      }
+      return acc;
+    }, {});
+  } catch {
+    return {};
+  }
+}
+
 export default function ZarzadzanieKontamiSection() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [addAccountFromButton, setAddAccountFromButton] = useState(false);
@@ -58,6 +78,7 @@ export default function ZarzadzanieKontamiSection() {
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState('');
   const [actionError, setActionError] = useState('');
+  const [userColors, setUserColors] = useState<Record<number, string>>(() => readUserColorsFromStorage());
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editName, setEditName] = useState('');
@@ -69,6 +90,18 @@ export default function ZarzadzanieKontamiSection() {
   const [editBlocked, setEditBlocked] = useState(false);
   const [editError, setEditError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const persistUserColor = (userId: number, color: string) => {
+    setUserColors((prev) => {
+      const next = { ...prev, [userId]: color };
+      try {
+        localStorage.setItem(USER_COLORS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // keep in-memory map if localStorage is unavailable
+      }
+      return next;
+    });
+  };
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -104,18 +137,21 @@ export default function ZarzadzanieKontamiSection() {
     const rawRole = (values['user-role'] ?? '').trim().toLowerCase();
     const role: UserRole = rawRole === 'admin' ? 'admin' : 'opiekun';
     const password = (values['user-password'] ?? '').trim() || 'haslo123';
+    const userColor = (values['user-color'] ?? '').trim() || DEFAULT_USER_COLOR;
 
     void (async () => {
       setActionError('');
       try {
-        await createUser({
+        const created = await createUser({
           name,
           surname,
           email,
           phoneNumber,
           password,
+          color: userColor,
           role: mapRoleToApi(role),
         });
+        persistUserColor(created.id, created.color ?? userColor);
         setPage(1);
         await fetchUsers();
       } catch {
@@ -272,6 +308,7 @@ export default function ZarzadzanieKontamiSection() {
             { id: 'user-email', label: 'Email', type: 'email', placeholder: 'jan@example.com' },
             { id: 'user-phone', label: 'Telefon', placeholder: '+48 600 123 456' },
             { id: 'user-role', label: 'Rola', options: ['Admin', 'Opiekun'] },
+            { id: 'user-color', label: 'Kolor użytkownika', type: 'color', defaultValue: DEFAULT_USER_COLOR },
             { id: 'user-password', label: 'Hasło tymczasowe', placeholder: 'haslo123' },
           ]}
           open={addAccountModalOpen}
@@ -299,6 +336,7 @@ export default function ZarzadzanieKontamiSection() {
                   <th>Numer</th>
                   <th>Status</th>
                   <th>Rola</th>
+                  <th>Kolor</th>
                   <th>Akcje</th>
                 </tr>
               </thead>
@@ -320,6 +358,17 @@ export default function ZarzadzanieKontamiSection() {
                         <span className={`user-role-badge role-${normalizeRole(user.role)}`}>{formatRole(user.role)}</span>
                       </td>
                       <td>
+                        {(() => {
+                          const c = userColors[user.id] ?? user.color ?? DEFAULT_USER_COLOR;
+                          return (
+                            <div className="user-color-cell">
+                              <span className="user-color-dot" style={{ background: c }} title={c} />
+                              <span className="user-color-hex">{c.toUpperCase()}</span>
+                            </div>
+                          );
+                        })()}
+                      </td>
+                      <td>
                         <button className="table-action-btn" onClick={() => openEdit(user)} type="button">
                           Edytuj
                         </button>
@@ -328,7 +377,7 @@ export default function ZarzadzanieKontamiSection() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="empty-row">
+                    <td colSpan={7} className="empty-row">
                       Brak kont
                     </td>
                   </tr>

@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { User } from '@/types/domain';
 
+const DEFAULT_PROFILE_COLOR = '#10b981';
+
 interface ProfilSectionProps {
   user: User;
-  onSave: (payload: Pick<User, 'name' | 'email' | 'phone' | 'password'>) => void;
+  onSave: (payload: Pick<User, 'name' | 'email' | 'phone' | 'password'> & { color: string }) => Promise<void>;
 }
 
 export default function ProfilSection({ user, onSave }: ProfilSectionProps) {
@@ -12,19 +14,28 @@ export default function ProfilSection({ user, onSave }: ProfilSectionProps) {
   const [email, setEmail] = useState(user.email);
   const [phone, setPhone] = useState(user.phone ?? '');
   const [password, setPassword] = useState(user.password);
+  const [color, setColor] = useState(user.color ?? DEFAULT_PROFILE_COLOR);
   const [message, setMessage] = useState('');
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    setColor(user.color ?? DEFAULT_PROFILE_COLOR);
+  }, [user.color]);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    onSave({
-      name,
-      email,
-      phone,
-      password,
-    });
-
-    setMessage('Profil został zapisany.');
+    setMessage('');
+    try {
+      await onSave({
+        name,
+        email,
+        phone,
+        password,
+        color,
+      });
+      setMessage('Profil został zapisany.');
+    } catch {
+      // Błąd: komunikat globalny w layoutcie (AppDataProvider)
+    }
   };
 
   return (
@@ -51,6 +62,25 @@ export default function ProfilSection({ user, onSave }: ProfilSectionProps) {
         <label>
           Telefon
           <input value={phone} onChange={(event) => setPhone(event.target.value)} />
+        </label>
+
+        <label htmlFor="profile-color">
+          Kolor na mapie
+          <div className="add-entry-color-picker">
+            <span
+              className="add-entry-color-preview-swatch"
+              style={{ background: color }}
+              aria-hidden
+            />
+            <input
+              id="profile-color"
+              type="color"
+              className="add-entry-color-input-native"
+              value={color}
+              onChange={(event) => setColor(event.target.value)}
+            />
+            <code className="add-entry-color-hex">{color.toUpperCase()}</code>
+          </div>
         </label>
 
         <label>
