@@ -4,31 +4,49 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import CooperativesTable from '@/components/common/CooperativesTable';
 import { VOIVODESHIPS } from '@/constants/voivodeships';
 import {
+  cooperativeMemberFormToPayload,
   listCooperatives,
   updateCooperative,
   deleteCooperative,
   formatCooperativeHistoryMessage,
   mapStatusToApi,
   type CooperativeApiStatus,
+  type CooperativeMemberFormInput,
 } from '@/services/cooperatives';
 import { listAreas } from '@/services/areas';
 import { listUsers } from '@/services/users';
+import { useAuth } from '@/app/providers/authContext';
 import type { Cooperative, CooperativeHistoryItem } from '@/types/domain';
 
 const PAGE_SIZE = 15;
-type CreateMember = {
-  id: number;
-  fullName: string;
-  ppeAddress: string;
-  nip: string;
-  plannedInstallationPower: string;
-  existingInstallationPower: string;
-  plannedStoragePower: string;
-  existingStoragePower: string;
-  joinDate: string;
-  note: string;
-  status: 'aktywny' | 'nieaktywny';
-};
+type CreateMember = CooperativeMemberFormInput & { id: number };
+
+function cooperativeToMemberForms(coop: Cooperative): CreateMember[] {
+  return (coop.members ?? []).map((m) => ({
+    id: m.id,
+    fullName: m.fullName,
+    ppeAddress: m.ppeAddress ?? '',
+    nip: m.nip ?? '',
+    plannedInstallationPower:
+      m.plannedInstallationPowerKwp != null ? String(m.plannedInstallationPowerKwp) : '',
+    existingInstallationPower:
+      m.existingInstallationPowerKwp != null ? String(m.existingInstallationPowerKwp) : '',
+    plannedStoragePower:
+      m.plannedEnergyStoragePowerKwp != null ? String(m.plannedEnergyStoragePowerKwp) : '',
+    existingStoragePower:
+      m.existingEnergyStoragePowerKwp != null ? String(m.existingEnergyStoragePowerKwp) : '',
+    joinDate: m.joinOrRegistrationDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+    note: m.note ?? '',
+    status: m.status,
+  }));
+}
+
+function stableSortedMemberPayloads(members: CreateMember[]) {
+  return members
+    .filter((m) => m.fullName.trim() && m.ppeAddress.trim())
+    .map((m) => cooperativeMemberFormToPayload(m))
+    .sort((a, b) => `${a.name}\0${a.ppeAddress}`.localeCompare(`${b.name}\0${b.ppeAddress}`, 'pl'));
+}
 
 type CooperativeCreateFormValues = {
   name: string;
@@ -73,23 +91,26 @@ function formatDateTime(iso: string): { date: string; time: string } {
   };
 }
 
-/** When `cooperatives` prop is passed, the section works in read-only, prop-driven mode (e.g. caregiver view). */
+/** When `cooperatives` prop is passed, lista pochodzi z rodzica (np. „Moje spółdzielnie”); zapis idzie do API, potem `onCooperativeSaved`. */
 interface SpoldzielnieSectionProps {
   cooperatives?: Cooperative[];
-  onUpdateCooperative?: (
-    coopId: number,
-    payload: Pick<Cooperative, 'status' | 'plannedPower' | 'installedPower'>,
-  ) => void;
+  onCooperativeSaved?: (coopId: number) => Promise<void>;
   onDeleteCooperative?: (coopId: number) => void;
 }
 
 export default function SpoldzielnieSection({
   cooperatives: cooperativesProp,
-  onUpdateCooperative: onUpdateCooperativeProp,
+  onCooperativeSaved,
   onDeleteCooperative: onDeleteCooperativeProp,
 }: SpoldzielnieSectionProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'admin';
+  const selfCaregiverId = currentUser ? String(currentUser.id) : '';
+  const selfCaregiverList = currentUser
+    ? [{ id: currentUser.id, name: currentUser.name }]
+    : [];
   const selfFetch = cooperativesProp === undefined;
 
   // ── self-fetch state ──────────────────────────────────────────────────────
@@ -121,7 +142,6 @@ export default function SpoldzielnieSection({
   });
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [createSaving, setCreateSaving] = useState(false);
   const [caregivers, setCaregivers] = useState<Array<{ id: number; name: string }>>([]);
   const [areas, setAreas] = useState<Array<{ id: number; name: string }>>([]);
   const [selectedAreaIds, setSelectedAreaIds] = useState<number[]>([]);
@@ -206,17 +226,25 @@ export default function SpoldzielnieSection({
     if (!createOpen && !editing) return;
     void (async () => {
       try {
-        const [usersRes, areasRes] = await Promise.all([
-          listUsers({ page: 1, limit: 200, role: 'OPIEKUN', sortOrder: 'asc' }),
-          listAreas({ page: 1, limit: 200, sortOrder: 'asc' }),
-        ]);
-        setCaregivers(usersRes.data.map((u) => ({ id: u.id, name: u.name })));
+        const areasRes = await listAreas({ page: 1, limit: 200, sortOrder: 'asc' });
         setAreas(areasRes.data.map((a) => ({ id: a.id, name: a.name })));
+
+        if (isAdmin) {
+          const usersRes = await listUsers({ page: 1, limit: 200, role: 'OPIEKUN', sortOrder: 'asc' });
+          setCaregivers(usersRes.data.map((u) => ({ id: u.id, name: u.name })));
+        } else {
+          setCaregivers(selfCaregiverList);
+        }
       } catch {
         // Keep modal usable even when optional lists fail to load.
       }
     })();
-  }, [createOpen, editing]);
+  }, [createOpen, editing, isAdmin, currentUser?.id, currentUser?.name]);
+
+  useEffect(() => {
+    if (!createOpen || isAdmin || !currentUser) return;
+    setCreateValues((prev) => ({ ...prev, caregiverId: selfCaregiverId }));
+  }, [createOpen, isAdmin, currentUser?.id, selfCaregiverId]);
 
   const resetCreateForm = () => {
     setSelectedAreaIds([]);
@@ -242,7 +270,7 @@ export default function SpoldzielnieSection({
       plannedPower: '0',
       installedPower: '0',
       registrationDate: new Date().toISOString().slice(0, 10),
-      caregiverId: '',
+      caregiverId: isAdmin ? '' : selfCaregiverId,
       boardName: '',
       boardEmail: '',
       boardPhone: '',
@@ -421,28 +449,14 @@ export default function SpoldzielnieSection({
       registrationDate: coop.registrationDate
         ? coop.registrationDate.slice(0, 10)
         : '',
-      caregiverId: coop.caregiverId ? String(coop.caregiverId) : '',
+      caregiverId: !isAdmin && currentUser ? selfCaregiverId : (coop.caregiverId ? String(coop.caregiverId) : ''),
       boardName: coop.boardName ?? '',
       boardEmail: coop.boardEmail ?? '',
       boardPhone: coop.boardPhone ?? '',
       status: coop.status,
     });
-    setEditSelectedAreaIds([]);
-    setEditMembers(
-      (coop.members ?? []).map((m) => ({
-        id: m.id,
-        fullName: m.fullName,
-        ppeAddress: '',
-        nip: '',
-        plannedInstallationPower: '',
-        existingInstallationPower: '',
-        plannedStoragePower: '',
-        existingStoragePower: '',
-        joinDate: new Date().toISOString().slice(0, 10),
-        note: '',
-        status: m.status === 'aktywny' ? 'aktywny' : 'nieaktywny',
-      })),
-    );
+    setEditSelectedAreaIds((coop.areas ?? []).map((a) => a.id));
+    setEditMembers(cooperativeToMemberForms(coop));
     setActionError('');
   };
 
@@ -461,18 +475,6 @@ export default function SpoldzielnieSection({
     const resolvedInstalled = Number.isFinite(installedPower) ? installedPower : editing.installedPower;
     const resolvedStatus = editValues.status;
 
-    const payload = {
-      status: resolvedStatus,
-      plannedPower: resolvedPlanned,
-      installedPower: resolvedInstalled,
-    };
-
-    if (!selfFetch) {
-      onUpdateCooperativeProp?.(editing.id, payload);
-      closeEdit();
-      return;
-    }
-
     // Build diff — only send fields that actually changed
     type UpdatePatch = Parameters<typeof updateCooperative>[1];
     const patch: UpdatePatch = {};
@@ -488,23 +490,47 @@ export default function SpoldzielnieSection({
       patch.boardEmail = editValues.boardEmail.trim();
     if (editValues.boardPhone.trim() && editValues.boardPhone.trim() !== (editing.boardPhone ?? ''))
       patch.boardPhone = editValues.boardPhone.trim();
-    if (editValues.registrationDate.trim())
-      patch.registrationDate = editValues.registrationDate.trim();
-    // Members are handled as standalone frontend entities (not user-bound IDs).
-    if (editSelectedAreaIds.length > 0) patch.areaIds = editSelectedAreaIds;
+    const nextReg = editValues.registrationDate.trim();
+    const prevReg = editing.registrationDate?.slice(0, 10) ?? '';
+    if (nextReg && nextReg !== prevReg) patch.registrationDate = nextReg;
+    const nextSupervisorId = Number(editValues.caregiverId);
+    if (
+      Number.isInteger(nextSupervisorId)
+      && nextSupervisorId > 0
+      && nextSupervisorId !== (editing.supervisorId ?? editing.caregiverId ?? 0)
+    ) {
+      patch.supervisorId = nextSupervisorId;
+    }
+    const prevAreaKey = (editing.areas ?? [])
+      .map((a) => a.id)
+      .sort((a, b) => a - b)
+      .join(',');
+    const nextAreaKey = [...editSelectedAreaIds].sort((a, b) => a - b).join(',');
+    if (prevAreaKey !== nextAreaKey) patch.areaIds = [...editSelectedAreaIds];
+
+    const nextMembersJson = JSON.stringify(stableSortedMemberPayloads(editMembers));
+    const prevMembersJson = JSON.stringify(stableSortedMemberPayloads(cooperativeToMemberForms(editing)));
+    if (nextMembersJson !== prevMembersJson) {
+      patch.members = stableSortedMemberPayloads(editMembers);
+    }
 
     if (Object.keys(patch).length === 0) {
       closeEdit();
       return;
     }
 
+    const coopId = editing.id;
     setSaving(true);
     void (async () => {
       setActionError('');
       try {
-        await updateCooperative(editing.id, patch);
+        await updateCooperative(coopId, patch);
         closeEdit();
-        await fetchCooperatives();
+        if (selfFetch) {
+          await fetchCooperatives();
+        } else {
+          await onCooperativeSaved?.(coopId);
+        }
       } catch {
         setActionError('Nie udało się zaktualizować spółdzielni.');
       } finally {
@@ -541,7 +567,7 @@ export default function SpoldzielnieSection({
   const openDetails = (coop: Cooperative) => setDetailsCoop(coop);
   const closeDetails = () => setDetailsCoop(null);
 
-  const canEdit = selfFetch || Boolean(onUpdateCooperativeProp);
+  const canEdit = selfFetch || Boolean(cooperativesProp !== undefined && currentUser);
 
   const filterBar = selfFetch ? (
     <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem' }}>
@@ -690,7 +716,7 @@ export default function SpoldzielnieSection({
                   />
                 </label>
                 <label htmlFor="coop-installed-power">
-                  Moc zainstalowana (kWp)
+                  Moc zainstalowana (kW)
                   <input
                     id="coop-installed-power"
                     name="coop-installed-power"
@@ -724,8 +750,9 @@ export default function SpoldzielnieSection({
                   value={createValues.caregiverId}
                   onChange={(e) => setCreateValues((prev) => ({ ...prev, caregiverId: e.target.value }))}
                   required
+                  disabled={!isAdmin}
                 >
-                  <option value="">— wybierz opiekuna —</option>
+                  {isAdmin ? <option value="">— wybierz opiekuna —</option> : null}
                   {caregivers.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
@@ -830,8 +857,8 @@ export default function SpoldzielnieSection({
                 <button className="primary-outline-btn" onClick={closeCreate} type="button">
                   Anuluj
                 </button>
-                <button className="primary-btn" type="submit" disabled={createSaving}>
-                  {createSaving ? 'Zapisywanie...' : 'Zapisz spółdzielnię'}
+                <button className="primary-btn" type="submit">
+                  Dalej — wybór punktu na mapie
                 </button>
               </div>
             </form>
@@ -879,7 +906,7 @@ export default function SpoldzielnieSection({
 
               <div className="coop-create-grid-2">
                 <label htmlFor="edit-coop-planned">
-                  Planowana moc (kWp)
+                  Moc znamionowa (kW)
                   <input
                     id="edit-coop-planned"
                     value={editValues.plannedPower}
@@ -889,7 +916,7 @@ export default function SpoldzielnieSection({
                   />
                 </label>
                 <label htmlFor="edit-coop-installed">
-                  Moc zainstalowana (kWp)
+                  Moc zainstalowana (kW)
                   <input
                     id="edit-coop-installed"
                     value={editValues.installedPower}
@@ -907,8 +934,9 @@ export default function SpoldzielnieSection({
                   className="add-entry-select"
                   value={editValues.caregiverId}
                   onChange={(e) => setEditValues((prev) => ({ ...prev, caregiverId: e.target.value }))}
+                  disabled={!isAdmin}
                 >
-                  <option value="">— wybierz opiekuna —</option>
+                  {isAdmin ? <option value="">— wybierz opiekuna —</option> : null}
                   {caregivers.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
@@ -1214,12 +1242,12 @@ export default function SpoldzielnieSection({
               <div className="coop-details-grid-2">
                 <div className="coop-details-power-card">
                   <span className="coop-details-power-label">Moc planowana</span>
-                  <span className="coop-details-power-value">{detailsCoop.plannedPower} <small>kWp</small></span>
+                  <span className="coop-details-power-value">{detailsCoop.plannedPower} <small>kW</small></span>
                 </div>
                 <div className="coop-details-power-card">
                   <span className="coop-details-power-label">Moc zainstalowana</span>
                   <span className="coop-details-power-value">
-                    {detailsCoop.installedPower > 0 ? <>{detailsCoop.installedPower} <small>kWp</small></> : '—'}
+                    {detailsCoop.installedPower > 0 ? <>{detailsCoop.installedPower} <small>kW</small></> : '—'}
                   </span>
                 </div>
               </div>
@@ -1293,7 +1321,12 @@ export default function SpoldzielnieSection({
                           <span className="coop-details-member-avatar">
                             {member.fullName.charAt(0).toUpperCase()}
                           </span>
-                          <span className="coop-details-value">{member.fullName}</span>
+                          <div className="coop-details-member-text">
+                            <span className="coop-details-value">{member.fullName}</span>
+                            {member.ppeAddress ? (
+                              <span className="coop-details-member-ppe">{member.ppeAddress}</span>
+                            ) : null}
+                          </div>
                           <span className={`coop-details-status-badge coop-details-status--${member.status.replace(/\s+/g, '-')}`}>
                             {member.status}
                           </span>

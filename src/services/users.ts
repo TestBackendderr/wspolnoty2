@@ -11,6 +11,7 @@ interface ApiUser {
   phoneNumber: string;
   role: ApiUserRole;
   isBlocked: boolean;
+  color?: string | null;
 }
 
 interface CreateUserPayload {
@@ -19,6 +20,8 @@ interface CreateUserPayload {
   email: string;
   phoneNumber: string;
   password: string;
+  /** Hex zgodny z backendem: `#RRGGBB` lub `#RRGGBBAA`. */
+  color: string;
   role: ApiUserRole;
 }
 
@@ -29,6 +32,7 @@ interface UpdateUserPayload {
   phoneNumber?: string;
   password?: string;
   role?: ApiUserRole;
+  color?: string;
 }
 
 export function mapRoleToApi(role: User['role']): ApiUserRole {
@@ -48,6 +52,7 @@ function mapUserFromApi(user: ApiUser): User {
     password: '',
     role: mapRoleFromApi(user.role),
     isBlocked: user.isBlocked,
+    color: user.color ?? undefined,
     notifications: [],
   };
 }

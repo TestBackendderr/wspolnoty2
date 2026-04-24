@@ -49,6 +49,7 @@ interface AuthUserResponse {
   phoneNumber?: string;
   role: string;
   isBlocked?: boolean;
+  color?: string | null;
 }
 
 function mapRole(role: string): User['role'] {
@@ -66,6 +67,7 @@ function mapAuthUser(response: AuthUserResponse): User {
     role: mapRole(response.role),
     password: '',
     isBlocked: Boolean(response.isBlocked),
+    color: response.color ?? undefined,
     notifications: [],
   };
 }

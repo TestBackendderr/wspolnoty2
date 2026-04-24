@@ -3,11 +3,14 @@ import type { ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import {
+  cooperativeMemberFormToPayload,
   createCooperative,
   deleteCooperative as deleteCooperativeApi,
+  getCooperativeById,
   listAllCooperatives,
+  type CooperativeMemberFormInput,
 } from '@/services/cooperatives';
-import { listAllUsers } from '@/services/users';
+import { listAllUsers, mapRoleToApi, updateUser } from '@/services/users';
 import type { AppDatabase, User } from '@/types/domain';
 import {
   appDatabaseWithSyncedCaregivers,
@@ -18,15 +21,21 @@ import type { AddEntryValues } from '@/components/common/AddEntryModal';
 import { useAuth } from './authContext';
 import { AppDataContext, type AppDataContextValue } from './appDataContext';
 
+function splitFullName(fullName: string): { name: string; surname: string } {
+  const normalized = fullName.trim().replace(/\s+/g, ' ');
+  if (!normalized) return { name: '', surname: '' };
+  const [name, ...rest] = normalized.split(' ');
+  return { name, surname: rest.join(' ') || 'Brak' };
+}
+
 /** Pages that need the full cooperatives list loaded into global state. */
 const PATHS_REQUIRING_FULL_COOPERATIVES = new Set<string>([
-  '/mapa',
   '/my-cooperatives',
   '/my-plan',
 ]);
 
 /** Routes that read `db.caregivers` from AppData (synced from full `users`). */
-const PATHS_REQUIRING_FULL_USERS = new Set<string>(['/mapa', '/my-plan']);
+const PATHS_REQUIRING_FULL_USERS = new Set<string>(['/my-plan']);
 
 function normalizePathname(pathname: string): string {
   if (!pathname) return '/';
@@ -149,13 +158,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         .map((id) => Number(id.trim()))
         .filter((id) => Number.isInteger(id) && id > 0);
       const membersRaw = String(values['coop-members'] ?? '[]');
-      const parsedMembers = JSON.parse(membersRaw) as Array<{ userId: number; status?: string }>;
+      const parsedMembers = JSON.parse(membersRaw) as Array<CooperativeMemberFormInput & { id?: number }>;
       const memberDtos = parsedMembers
-        .filter((m) => Number.isInteger(Number(m.userId)) && Number(m.userId) > 0)
-        .map((m) => ({
-          userId: Number(m.userId),
-          status: m.status === 'aktywny' ? 'AKTYWNY' : m.status === 'nieaktywny' ? 'NIEAKTYWNY' : 'AKTYWNY',
-        }));
+        .filter((m) => m.fullName?.trim() && m.ppeAddress?.trim())
+        .map((m) => cooperativeMemberFormToPayload(m));
       const registrationDate = String(values['coop-registration-date'] ?? '').trim();
 
       const installedPowerVal = Number(values['coop-installed-power'] ?? 0);
@@ -201,31 +207,74 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     })();
   };
 
-  const handleUpdateMyProfile: AppDataContextValue['handleUpdateMyProfile'] = (
-    payload: Pick<User, 'name' | 'email' | 'phone' | 'password'>,
+  const refreshCooperativeById: AppDataContextValue['refreshCooperativeById'] = async (
+    id,
+  ) => {
+    setError('');
+    try {
+      const coop = await getCooperativeById(id);
+      setDb((prev) => ({
+        ...prev,
+        cooperatives: prev.cooperatives.some((c) => c.id === coop.id)
+          ? prev.cooperatives.map((c) => (c.id === coop.id ? coop : c))
+          : [...prev.cooperatives, coop],
+      }));
+    } catch {
+      setError('Nie udało się odświeżyć danych spółdzielni.');
+      throw new Error('REFRESH_COOP_FAILED');
+    }
+  };
+
+  const handleUpdateMyProfile: AppDataContextValue['handleUpdateMyProfile'] = async (
+    payload: Pick<User, 'name' | 'email' | 'phone' | 'password'> & { color: string },
   ) => {
     if (!currentUser) return;
-    setDb((prev) => ({
-      ...prev,
-      users: prev.users.map((user) =>
-        user.id === currentUser.id
+    const split = splitFullName(payload.name.trim() || currentUser.name);
+    const colorHex = payload.color.trim() || currentUser.color || '#10b981';
+
+    setError('');
+    try {
+      const updated = await updateUser(currentUser.id, {
+        name: split.name || payload.name.trim() || currentUser.name,
+        surname: split.surname,
+        email: payload.email.trim() || currentUser.email,
+        phoneNumber: payload.phone?.trim() ?? '',
+        role: mapRoleToApi(currentUser.role),
+        color: colorHex,
+        ...(payload.password.trim() ? { password: payload.password.trim() } : {}),
+      });
+
+      updateCurrentUser((prev) =>
+        prev
           ? {
-              ...user,
-              name: payload.name.trim() || user.name,
-              email: payload.email.trim() || user.email,
-              phone: payload.phone?.trim() ?? user.phone ?? '',
-              password: payload.password.trim() || user.password,
+              ...prev,
+              name: updated.name,
+              email: updated.email,
+              phone: updated.phone,
+              color: updated.color,
+              password: payload.password.trim() ? payload.password.trim() : prev.password,
             }
-          : user,
-      ),
-    }));
-    updateCurrentUser((prev) => ({
-      ...prev,
-      name: payload.name.trim() || prev.name,
-      email: payload.email.trim() || prev.email,
-      phone: payload.phone?.trim() ?? prev.phone ?? '',
-      password: payload.password.trim() || prev.password,
-    }));
+          : prev,
+      );
+      setDb((prev) => ({
+        ...prev,
+        users: prev.users.map((user) =>
+          user.id === currentUser.id
+            ? {
+                ...user,
+                name: updated.name,
+                email: updated.email,
+                phone: updated.phone,
+                color: updated.color,
+                password: payload.password.trim() ? payload.password.trim() : user.password,
+              }
+            : user,
+        ),
+      }));
+    } catch {
+      setError('Nie udało się zapisać profilu. Sprawdź dane i sesję.');
+      throw new Error('PROFILE_SAVE_FAILED');
+    }
   };
 
   const handleSetVoivodeshipLead: AppDataContextValue['handleSetVoivodeshipLead'] = (
@@ -297,6 +346,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     clearError: () => setError(''),
     handleAddCooperative,
     handleDeleteCooperative,
+    refreshCooperativeById,
     handleUpdateMyProfile,
     handleSetVoivodeshipLead,
     handleSetVoivodeshipAssignments,
