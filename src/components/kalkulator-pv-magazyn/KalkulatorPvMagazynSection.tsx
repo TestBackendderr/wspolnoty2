@@ -1,21 +1,37 @@
 import AddEntryModal from '@/components/common/AddEntryModal';
 import type { AddEntryValues } from '@/components/common/AddEntryModal';
+import CalculationPdfReportButton from '@/components/kalkulator-pv-magazyn/CalculationPdfReportButton';
 import {
   createCalculationProfile,
   deleteCalculationProfile,
   listAllCalculationProfiles,
   type CalculationProfile,
 } from '@/services/calculationProfiles';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Chart,
+  CategoryScale,
+  Filler,
+  Legend,
+  LineController,
+  LineElement,
+  LinearScale,
+  PointElement,
+  Tooltip,
+} from 'chart.js';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type Distributor = 'pge' | 'tauron' | 'enea' | 'energa' | 'eon';
 type Tariff = 'C1x' | 'C2x' | 'B21' | 'B22' | 'B23' | 'G11' | 'G12';
 type EmsType = 'none' | 'one-time' | 'monthly';
 type SubsidyType = 'fixed' | 'percent';
 type SeasonalityType = 'none' | 'summer' | 'winter';
+type FinancingType = 'cash' | 'credit' | 'leasing';
 type Tab = 'config' | 'results';
 
 interface CalcFormData {
+  companyName: string;
+  address: string;
+  nip: string;
   distributor: Distributor;
   tariff: Tariff;
   contractedPower: number;
@@ -33,6 +49,7 @@ interface CalcFormData {
   existingPvPower: number;
   pvPower: number;
   selfConsPct: number;
+  pvMount: 'sloped-roof' | 'flat-roof' | 'ground' | 'facade';
   pvType: 'existing' | 'planned';
   pvTotalPrice: number;
   batteryCapacity: number;
@@ -42,6 +59,9 @@ interface CalcFormData {
   inflation: number;
   subsidyType: SubsidyType;
   subsidyValue: number;
+  financing: FinancingType;
+  interestRate: number;
+  loanYears: number;
 }
 
 interface MonthlyRow {
@@ -74,6 +94,14 @@ interface CalcResult {
   npv: number;
   newTotalCost: number;
   newRevenue: number;
+  oldEnergyCost: number;
+  oldDistTotal: number;
+  oldFixedCost: number;
+  newEnergyCost: number;
+  newDistCost: number;
+  newFixed: number;
+  newBalanceCost: number;
+  cashflows: number[];
 }
 
 const monthlyProdFactors = [
@@ -100,10 +128,27 @@ function round2(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+Chart.register(
+  LineController,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Tooltip,
+  Legend,
+  Filler,
+);
+
 export default function KalkulatorPvMagazynSection() {
+  const configStorageKey = 'kalkulator-pv-magazyn-config';
+  const cashflowCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const cashflowChartRef = useRef<Chart<'line'> | null>(null);
   const [tab, setTab] = useState<Tab>('config');
   const [result, setResult] = useState<CalcResult | null>(null);
   const [formData, setFormData] = useState<CalcFormData>({
+    companyName: '',
+    address: '',
+    nip: '',
     distributor: 'pge',
     tariff: 'C1x',
     contractedPower: 10,
@@ -121,6 +166,7 @@ export default function KalkulatorPvMagazynSection() {
     existingPvPower: 0,
     pvPower: 6,
     selfConsPct: 35,
+    pvMount: 'sloped-roof',
     pvType: 'planned',
     pvTotalPrice: 20000,
     batteryCapacity: 0,
@@ -130,6 +176,9 @@ export default function KalkulatorPvMagazynSection() {
     inflation: 6,
     subsidyType: 'fixed',
     subsidyValue: 7000,
+    financing: 'cash',
+    interestRate: 6.9,
+    loanYears: 10,
   });
   const [calculationProfiles, setCalculationProfiles] = useState<CalculationProfile[]>([]);
   const [profilesLoading, setProfilesLoading] = useState(false);
@@ -284,8 +333,10 @@ export default function KalkulatorPvMagazynSection() {
     const discount = 0.07;
     let cumulative = -netInvestment;
     let npv = -netInvestment;
+    const cashflows: number[] = [];
     for (let y = 1; y <= 25; y += 1) {
       const cashflow = annualSaving * Math.pow(1 + inflation, y - 1);
+      cashflows.push(cashflow);
       cumulative += cashflow;
       npv += cashflow / Math.pow(1 + discount, y);
     }
@@ -308,6 +359,14 @@ export default function KalkulatorPvMagazynSection() {
       npv,
       newTotalCost,
       newRevenue,
+      oldEnergyCost,
+      oldDistTotal,
+      oldFixedCost,
+      newEnergyCost,
+      newDistCost,
+      newFixed,
+      newBalanceCost,
+      cashflows,
     });
     setTab('results');
   };
@@ -352,6 +411,78 @@ export default function KalkulatorPvMagazynSection() {
     })();
   };
 
+  const saveConfig = () => {
+    localStorage.setItem(configStorageKey, JSON.stringify(formData));
+  };
+
+  const loadConfig = () => {
+    const raw = localStorage.getItem(configStorageKey);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as Partial<CalcFormData>;
+      setFormData((prev) => updateFixedFee({ ...prev, ...parsed }));
+    } catch {
+      // Ignore invalid stored data and keep current form state.
+    }
+  };
+
+  useEffect(() => {
+    if (!result || !cashflowCanvasRef.current || tab !== 'results') return;
+
+    if (cashflowChartRef.current) {
+      cashflowChartRef.current.destroy();
+      cashflowChartRef.current = null;
+    }
+
+    const labels = Array.from({ length: 25 }, (_, i) => `Rok ${i + 1}`);
+    cashflowChartRef.current = new Chart(cashflowCanvasRef.current, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Roczny cash-flow',
+            data: result.cashflows,
+            borderColor: '#0b8f27',
+            backgroundColor: 'rgba(11, 143, 39, 0.14)',
+            pointBackgroundColor: '#0b8f27',
+            pointBorderColor: '#0b8f27',
+            pointRadius: 2,
+            pointHoverRadius: 3,
+            borderWidth: 2.5,
+            tension: 0.25,
+            fill: true,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top' },
+          tooltip: { mode: 'index', intersect: false },
+        },
+        interaction: { mode: 'nearest', intersect: false },
+        scales: {
+          x: {
+            ticks: { maxRotation: 0, minRotation: 0, autoSkip: true, maxTicksLimit: 26 },
+            grid: { color: 'rgba(0,0,0,0.07)' },
+          },
+          y: {
+            grid: { color: 'rgba(0,0,0,0.07)' },
+          },
+        },
+      },
+    });
+
+    return () => {
+      if (cashflowChartRef.current) {
+        cashflowChartRef.current.destroy();
+        cashflowChartRef.current = null;
+      }
+    };
+  }, [result, tab]);
+
   return (
     <>
       <AddEntryModal
@@ -365,7 +496,7 @@ export default function KalkulatorPvMagazynSection() {
       />
       <section className="panel">
         <div className="calc-container">
-          <h3>Kalkulator Fotowoltaiki i Magazynu Energii</h3>
+          <h1 className="calc-title">Kalkulator Fotowoltaiki i Magazynu Energii</h1>
           <div className="calc-section">
             <div
               style={{
@@ -471,6 +602,36 @@ export default function KalkulatorPvMagazynSection() {
           {tab === 'config' ? (
             <div className="calc-tabcontent">
               <div className="calc-section">
+                <h2>Dane odbiorcy</h2>
+                <label className="calc-label">
+                  Nazwa firmy / Imię i nazwisko
+                  <input
+                    className="calc-input"
+                    type="text"
+                    value={formData.companyName}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, companyName: e.target.value }))}
+                  />
+                </label>
+                <label className="calc-label">
+                  Adres
+                  <input
+                    className="calc-input"
+                    type="text"
+                    value={formData.address}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, address: e.target.value }))}
+                  />
+                </label>
+                <label className="calc-label">
+                  NIP
+                  <input
+                    className="calc-input"
+                    type="text"
+                    value={formData.nip}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, nip: e.target.value }))}
+                  />
+                </label>
+              </div>
+              <div className="calc-section">
                 <h2>Dystrybucja i parametry umowne</h2>
                 <label className="calc-label">
                   Obecny operator sieci (OSD)
@@ -537,11 +698,61 @@ export default function KalkulatorPvMagazynSection() {
               </div>
 
               <div className="calc-section">
+                <h2>Energia czynna - ceny</h2>
+                <label className="calc-label">
+                  Średnia cena energii czynnej (zł/kWh)
+                  <input className="calc-input" type="number" step="0.01" value={formData.avgEnergyPrice} onChange={onNumberChange('avgEnergyPrice')} />
+                </label>
+              </div>
+
+              <div className="calc-section">
+                <h2>Spółdzielnia energetyczna</h2>
+                <label className="calc-label">
+                  Czy w spółdzielni energetycznej?
+                  <select
+                    className="calc-select"
+                    value={formData.inCoop ? 'yes' : 'no'}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, inCoop: e.target.value === 'yes' }))}
+                  >
+                    <option value="no">Nie</option>
+                    <option value="yes">Tak</option>
+                  </select>
+                </label>
+                {formData.inCoop ? (
+                  <>
+                    <label className="calc-label">
+                      Odkup energii w spółdzielni (zł/kWh)
+                      <input className="calc-input" type="number" step="0.01" value={formData.coopSellPrice} onChange={onNumberChange('coopSellPrice')} />
+                    </label>
+                    <label className="calc-label">
+                      Zakup energii w spółdzielni (zł/kWh)
+                      <input className="calc-input" type="number" step="0.01" value={formData.coopBuyPrice} onChange={onNumberChange('coopBuyPrice')} />
+                    </label>
+                    <label className="calc-label">
+                      Stała opłata członkowska (zł/m-c)
+                      <input className="calc-input" type="number" step="0.01" value={formData.coopMembershipFee} onChange={onNumberChange('coopMembershipFee')} />
+                    </label>
+                    <label className="calc-label">
+                      Opłata bilansowa od 1 kWh (zł/kWh)
+                      <input className="calc-input" type="number" step="0.001" value={formData.coopBalanceFee} onChange={onNumberChange('coopBalanceFee')} />
+                    </label>
+                  </>
+                ) : null}
+              </div>
+
+              <div className="calc-section">
                 <h2>Profil zużycia energii</h2>
                 <label className="calc-label">
                   Roczne zużycie energii (kWh)
                   <input className="calc-input" type="number" step="100" value={formData.annualConsumption} onChange={onNumberChange('annualConsumption')} />
                 </label>
+                <label className="calc-label">
+                  Wgraj plik z danymi godzinowymi / 15-minutowymi (opcjonalnie)
+                  <input className="calc-input" type="file" accept=".csv,.xlsx,.xls" />
+                </label>
+                <p style={{ fontSize: '0.9em', color: '#555', marginTop: 8, marginBottom: 18 }}>
+                  Format CSV: kolumna 1 = timestamp, kolumna 2 = zużycie (kWh). Obsługuje też raporty OSD.
+                </p>
                 <label className="calc-label">
                   Typ sezonowości prognozy
                   <select
@@ -554,14 +765,10 @@ export default function KalkulatorPvMagazynSection() {
                     <option value="winter">Sezonowość zimowa</option>
                   </select>
                 </label>
-                <label className="calc-label">
-                  Średnia cena energii czynnej (zł/kWh)
-                  <input className="calc-input" type="number" step="0.01" value={formData.avgEnergyPrice} onChange={onNumberChange('avgEnergyPrice')} />
-                </label>
               </div>
 
               <div className="calc-section">
-                <h2>Instalacja PV i magazyn</h2>
+                <h2>Instalacja PV</h2>
                 <label className="calc-label">
                   Typ instalacji
                   <select
@@ -585,12 +792,34 @@ export default function KalkulatorPvMagazynSection() {
                   Zakładany poziom bezpośredniej autokonsumpcji (%)
                   <input className="calc-input" type="number" min="0" max="100" value={formData.selfConsPct} onChange={onNumberChange('selfConsPct')} />
                 </label>
+                <label className="calc-label">
+                  Miejsce montażu
+                  <select
+                    className="calc-select"
+                    value={formData.pvMount}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        pvMount: e.target.value as CalcFormData['pvMount'],
+                      }))
+                    }
+                  >
+                    <option value="sloped-roof">Dach skośny</option>
+                    <option value="flat-roof">Dach płaski</option>
+                    <option value="ground">Montaż gruntowy</option>
+                    <option value="facade">Elewacja / balkon</option>
+                  </select>
+                </label>
                 {formData.pvType === 'planned' ? (
                   <label className="calc-label">
                     Całkowita cena netto instalacji PV (zł)
                     <input className="calc-input" type="number" step="100" value={formData.pvTotalPrice} onChange={onNumberChange('pvTotalPrice')} />
                   </label>
                 ) : null}
+              </div>
+
+              <div className="calc-section">
+                <h2>Magazyn energii</h2>
                 <label className="calc-label">
                   Pojemność magazynu (kWh)
                   <input className="calc-input" type="number" step="0.1" value={formData.batteryCapacity} onChange={onNumberChange('batteryCapacity')} />
@@ -606,38 +835,7 @@ export default function KalkulatorPvMagazynSection() {
               </div>
 
               <div className="calc-section">
-                <h2>Spółdzielnia i finansowanie</h2>
-                <label className="calc-label">
-                  Czy w spółdzielni energetycznej?
-                  <select
-                    className="calc-select"
-                    value={formData.inCoop ? 'yes' : 'no'}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, inCoop: e.target.value === 'yes' }))}
-                  >
-                    <option value="no">Nie</option>
-                    <option value="yes">Tak</option>
-                  </select>
-                </label>
-                {formData.inCoop ? (
-                  <>
-                    <label className="calc-label">
-                      Odkup energii w spółdzielni (zł/kWh)
-                      <input className="calc-input" type="number" step="0.01" value={formData.coopSellPrice} onChange={onNumberChange('coopSellPrice')} />
-                    </label>
-                    <label className="calc-label">
-                      Zakup energii w spółdzielni (zł/kWh)
-                      <input className="calc-input" type="number" step="0.01" value={formData.coopBuyPrice} onChange={onNumberChange('coopBuyPrice')} />
-                    </label>
-                    <label className="calc-label">
-                      Opłata członkowska (zł/m-c)
-                      <input className="calc-input" type="number" step="0.01" value={formData.coopMembershipFee} onChange={onNumberChange('coopMembershipFee')} />
-                    </label>
-                    <label className="calc-label">
-                      Opłata bilansowa (zł/kWh)
-                      <input className="calc-input" type="number" step="0.001" value={formData.coopBalanceFee} onChange={onNumberChange('coopBalanceFee')} />
-                    </label>
-                  </>
-                ) : null}
+                <h2>Zarządzanie magazynem energii (EMS)</h2>
                 <label className="calc-label">
                   Model opłat EMS
                   <select
@@ -656,6 +854,10 @@ export default function KalkulatorPvMagazynSection() {
                     <input className="calc-input" type="number" step="10" value={formData.emsCost} onChange={onNumberChange('emsCost')} />
                   </label>
                 ) : null}
+              </div>
+
+              <div className="calc-section">
+                <h2>Finansowanie i pozostałe</h2>
                 <label className="calc-label">
                   Roczna inflacja cen energii (%)
                   <input className="calc-input" type="number" step="0.1" value={formData.inflation} onChange={onNumberChange('inflation')} />
@@ -675,8 +877,36 @@ export default function KalkulatorPvMagazynSection() {
                   Wartość dotacji
                   <input className="calc-input" type="number" step="100" value={formData.subsidyValue} onChange={onNumberChange('subsidyValue')} />
                 </label>
+                <label className="calc-label">
+                  Sposób finansowania
+                  <select
+                    className="calc-select"
+                    value={formData.financing}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, financing: e.target.value as FinancingType }))
+                    }
+                  >
+                    <option value="cash">Gotówka / własne środki</option>
+                    <option value="credit">Kredyt</option>
+                    <option value="leasing">Leasing</option>
+                  </select>
+                </label>
+                <label className="calc-label">
+                  Oprocentowanie (%)
+                  <input className="calc-input" type="number" step="0.1" value={formData.interestRate} onChange={onNumberChange('interestRate')} />
+                </label>
+                <label className="calc-label">
+                  Okres spłaty (lata)
+                  <input className="calc-input" type="number" min="1" value={formData.loanYears} onChange={onNumberChange('loanYears')} />
+                </label>
                 <button className="calc-button" onClick={calculate} type="button">
                   OBLICZ
+                </button>
+                <button className="calc-button" onClick={saveConfig} type="button">
+                  Zapisz konfigurację
+                </button>
+                <button className="calc-button" onClick={loadConfig} type="button">
+                  Wczytaj konfigurację
                 </button>
               </div>
             </div>
@@ -686,12 +916,14 @@ export default function KalkulatorPvMagazynSection() {
                 <>
                   <div className="calc-section">
                     <h2>Podstawowe parametry</h2>
-                    <p>
-                      Produkcja PV: <b>{result.yearlyProduction.toFixed(0)} kWh</b> | Autokonsumpcja:{' '}
-                      <b>{result.yearlyAutoconsumption.toFixed(0)} kWh</b> | Eksport:{' '}
-                      <b>{result.yearlyExport.toFixed(0)} kWh</b> | Import:{' '}
-                      <b>{result.yearlyImport.toFixed(0)} kWh</b>
-                    </p>
+                    <p><b>OSD:</b> {formData.distributor.toUpperCase()}</p>
+                    <p><b>Taryfa:</b> {formData.tariff} | <b>Moc umowna:</b> {formData.contractedPower.toFixed(1)} kW</p>
+                    <p><b>Moc istniejącej PV:</b> {formData.existingPvPower.toFixed(1)} kWp</p>
+                    <p><b>Moc planowanej PV:</b> {formData.pvPower.toFixed(1)} kWp</p>
+                    <p><b>Roczne zużycie:</b> {formData.annualConsumption.toLocaleString('pl-PL')} kWh</p>
+                    <p><b>Produkcja PV:</b> {result.yearlyProduction.toFixed(0)} kWh</p>
+                    <p><b>Autokonsumpcja:</b> {result.yearlyAutoconsumption.toFixed(0)} kWh</p>
+                    <p><b>Eksport:</b> {result.yearlyExport.toFixed(0)} kWh | <b>Import:</b> {result.yearlyImport.toFixed(0)} kWh</p>
                   </div>
                   <div className="calc-section">
                     <h2>Miesięczna tabela kosztów i przepływów energii</h2>
@@ -700,16 +932,16 @@ export default function KalkulatorPvMagazynSection() {
                         <thead>
                           <tr>
                             <th>M-c</th>
-                            <th>Zużycie</th>
-                            <th>Produkcja PV</th>
-                            <th>Autokons.</th>
-                            <th>Eksport łącznie</th>
-                            <th>Do sieci</th>
-                            <th>Do spółdz.</th>
-                            <th>Import</th>
-                            <th>Koszt całk.</th>
-                            <th>Przychod</th>
-                            <th>Bilans netto</th>
+                            <th>Zużycie (kWh)</th>
+                            <th>Produkcja PV (kWh)</th>
+                            <th>Autokonsumpcja (kWh)</th>
+                            <th>Eksport łącznie (kWh)</th>
+                            <th>Do sieci (kWh)</th>
+                            <th>Do spółdz. (kWh)</th>
+                            <th>Import (kWh)</th>
+                            <th>Koszt całk. (zł)</th>
+                            <th>Przychód (zł)</th>
+                            <th>Bilans netto (zł)</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -728,6 +960,43 @@ export default function KalkulatorPvMagazynSection() {
                               <td className={row.net >= 0 ? 'positive' : 'negative'}>{row.net.toFixed(2)}</td>
                             </tr>
                           ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div className="calc-section">
+                    <h2>Porównanie struktury kosztów rocznych</h2>
+                    <div className="table-wrapper">
+                      <table className="calc-table">
+                        <thead>
+                          <tr>
+                            <th>Kategoria</th>
+                            <th>Przed inwestycją (zł/rok)</th>
+                            <th>Po inwestycji (zł/rok)</th>
+                            <th>Różnica (zł)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[
+                            { name: 'Energia czynna', before: result.oldEnergyCost, after: result.newEnergyCost },
+                            { name: 'Dystrybucja (zmienna)', before: result.oldDistTotal, after: result.newDistCost },
+                            { name: 'Opłata stała sieciowa / abonament', before: result.oldFixedCost, after: formData.monthlySubscription * 12 },
+                            { name: 'Opłata bilansowa spółdzielni', before: 0, after: result.newBalanceCost },
+                            { name: 'EMS + opłata członkowska', before: 0, after: result.newFixed - formData.monthlySubscription * 12 },
+                            { name: 'RAZEM koszty', before: result.oldEnergyCost + result.oldDistTotal + result.oldFixedCost, after: result.newTotalCost },
+                            { name: 'Przychód ze sprzedaży', before: result.oldEnergyCost + result.oldDistTotal + result.oldFixedCost - result.oldNet, after: result.newRevenue },
+                            { name: 'Bilans netto', before: result.oldNet, after: result.newNet },
+                          ].map((row) => {
+                            const diff = row.before - row.after;
+                            return (
+                              <tr key={row.name}>
+                                <td style={{ textAlign: 'left' }}>{row.name}</td>
+                                <td>{row.before.toFixed(2)}</td>
+                                <td>{row.after.toFixed(2)}</td>
+                                <td className={diff >= 0 ? 'positive' : 'negative'}>{diff.toFixed(2)}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -759,6 +1028,16 @@ export default function KalkulatorPvMagazynSection() {
                       <br />
                       NPV (7%): <b className="positive">{result.npv.toFixed(0)} zł</b>
                     </p>
+                    <div style={{ height: 360, marginTop: 12 }}>
+                      <canvas ref={cashflowCanvasRef} />
+                    </div>
+                    <div style={{ marginTop: 20 }}>
+                      <CalculationPdfReportButton
+                        formData={formData}
+                        result={result}
+                        cashflowCanvas={cashflowCanvasRef.current}
+                      />
+                    </div>
                   </div>
                 </>
               ) : (

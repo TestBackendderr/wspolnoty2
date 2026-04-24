@@ -1462,16 +1462,22 @@ td {
 }
 
 .calc-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  background-color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   border: 1px solid #3e0387;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
 }
 
-.calc-container h3 {
+.calc-title {
   margin: 0;
-  padding: 18px 20px;
-  background: #3e0387;
-  color: #fff;
+  padding: 24px 25px;
+  color: #3e0387;
+  font-size: 30px;
+  line-height: 1.2;
+  border-bottom: 1px solid #3e0387;
 }
 
 .calc-tab {
@@ -1482,9 +1488,12 @@ td {
 
 .calc-tab button {
   background-color: inherit;
+  float: left;
   border: none;
+  outline: none;
   cursor: pointer;
   padding: 14px 20px;
+  transition: 0.3s;
   color: #3e0387;
 }
 
@@ -1498,8 +1507,8 @@ td {
 }
 
 .calc-section {
-  padding: 20px;
-  border-bottom: 1px solid #ede9fe;
+  padding: 25px;
+  border-bottom: 1px solid #3e0387;
 }
 
 .calc-section h2 {
@@ -1509,20 +1518,29 @@ td {
 }
 
 .calc-label {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 12px;
-  font-size: 14px;
+  display: block;
+  margin-bottom: 8px;
+  color: #3e0387;
+  font-weight: 700;
 }
 
 .calc-input,
 .calc-select {
   width: 100%;
   padding: 12px;
+  margin-bottom: 18px;
   border: 1px solid #3e0387;
   border-radius: 6px;
-  font-size: 15px;
+  box-sizing: border-box;
+  font-size: 16px;
   background-color: #f9f9f9;
+}
+
+.calc-input:focus,
+.calc-select:focus {
+  border-color: #ab1317;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(171, 19, 23, 0.15);
 }
 
 .calc-button {
@@ -1533,7 +1551,12 @@ td {
   cursor: pointer;
   border-radius: 6px;
   font-size: 16px;
-  font-weight: 600;
+  margin-right: 12px;
+  transition: background-color 0.3s;
+}
+
+.calc-button:hover {
+  background-color: #ab1317;
 }
 
 .calc-table {
