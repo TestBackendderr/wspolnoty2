@@ -1,3 +1,4 @@
+import type { RefObject } from 'react';
 import pdfMake from 'pdfmake/build/pdfmake';
 import pdfFonts from 'pdfmake/build/vfs_fonts';
 
@@ -56,7 +57,7 @@ interface PdfFormData {
 interface CalculationPdfReportButtonProps {
   formData: PdfFormData;
   result: PdfResultData;
-  cashflowCanvas: HTMLCanvasElement | null;
+  cashflowCanvasRef: RefObject<HTMLCanvasElement | null>;
 }
 
 function cell(value: string | number, bold = false): { text: string; bold?: boolean } {
@@ -66,7 +67,7 @@ function cell(value: string | number, bold = false): { text: string; bold?: bool
 export default function CalculationPdfReportButton({
   formData,
   result,
-  cashflowCanvas,
+  cashflowCanvasRef,
 }: CalculationPdfReportButtonProps) {
   const handleGeneratePdf = () => {
     const vfs = (pdfFonts as { pdfMake?: { vfs?: unknown }; vfs?: unknown }).pdfMake?.vfs ??
@@ -78,7 +79,7 @@ export default function CalculationPdfReportButton({
     const oldGrossCosts = result.oldEnergyCost + result.oldDistTotal + result.oldFixedCost;
     const oldRevenue = oldGrossCosts - result.oldNet;
     const generatedDate = new Date().toLocaleDateString('pl-PL');
-    const chartImageDataUrl = cashflowCanvas?.toDataURL('image/png');
+    const chartImageDataUrl = cashflowCanvasRef.current?.toDataURL('image/png');
 
     const monthlyHeader = [
       cell('Miesiąc', true),

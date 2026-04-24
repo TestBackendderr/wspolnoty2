@@ -1035,7 +1035,7 @@ export default function KalkulatorPvMagazynSection() {
                       <CalculationPdfReportButton
                         formData={formData}
                         result={result}
-                        cashflowCanvas={cashflowCanvasRef.current}
+                        cashflowCanvasRef={cashflowCanvasRef}
                       />
                     </div>
                   </div>
