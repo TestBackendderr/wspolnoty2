@@ -353,6 +353,142 @@ body {
   display: grid;
 }
 
+.notifications-popover-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.notifications-popover-head h4 {
+  margin: 0;
+}
+
+.notifications-popover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.notification-read-all-btn {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.notification-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.notification-filter-tight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.notification-filter-tight .add-entry-select {
+  max-width: 100%;
+  min-width: 0;
+  flex: 1;
+}
+
+.notification-list-error,
+.notification-list-loading {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.notification-scroll {
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+button.notification-row-click {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 10px;
+  margin-bottom: 8px;
+  background: #fafafa;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font: inherit;
+  color: inherit;
+}
+
+button.notification-row-click:hover {
+  background: #f3f4f6;
+}
+
+button.notification-row-click:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.notification-row-unread {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.notification-row-important {
+  border-left: 4px solid #dc2626;
+}
+
+.notification-row-title {
+  font-size: 14px;
+  color: #111827;
+}
+
+.notification-row-body {
+  font-size: 13px;
+  color: #4b5563;
+  line-height: 1.35;
+}
+
+.notification-row-time {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.notification-archive-label {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.notification-live-hint {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+
+.notification-dashboard-callout {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #3730a3;
+}
+
+.notification-dashboard-callout p {
+  margin: 0;
+  font-size: 14px;
+}
+
 .sidebar-toggle-btn {
   display: none;
   width: 38px;

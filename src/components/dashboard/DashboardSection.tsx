@@ -6,9 +6,16 @@ interface DashboardSectionProps {
   stats: DashboardStats | null;
   isLoading: boolean;
   error: string;
+  /** Opcjonalnie: liczba nieprzeczytanych powiadomień z API. */
+  unreadNotifications?: number;
 }
 
-export default function DashboardSection({ stats, isLoading, error }: DashboardSectionProps) {
+export default function DashboardSection({
+  stats,
+  isLoading,
+  error,
+  unreadNotifications = 0,
+}: DashboardSectionProps) {
   if (isLoading) {
     return (
       <section className="panel">
@@ -53,6 +60,17 @@ export default function DashboardSection({ stats, isLoading, error }: DashboardS
 
   return (
     <>
+      {unreadNotifications > 0 ? (
+        <section className="panel notification-dashboard-callout" role="status">
+          <p>
+            <i className="fa-solid fa-bell" aria-hidden />
+            {' '}
+            Masz <strong>{unreadNotifications}</strong> nieprzeczytan{unreadNotifications === 1 ? 'e' : 'ych'}
+            {' '}
+            powiadomień. Sprawdź ikonę dzwonka w prawym górnym rogu.
+          </p>
+        </section>
+      ) : null}
       <section className="dashboard-grid">
         <article className="dashboard-kpi-card">
           <p>Spółdzielnie</p>
