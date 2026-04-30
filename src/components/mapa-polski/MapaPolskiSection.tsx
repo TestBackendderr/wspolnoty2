@@ -227,6 +227,7 @@ export default function MapaPolskiSection({
   const [selectedPointCoopData, setSelectedPointCoopData] = useState<Cooperative | null>(null);
   const [selectedPointCoopLoading, setSelectedPointCoopLoading] = useState(false);
   const [selectedPointCoopError, setSelectedPointCoopError] = useState('');
+  const [mapPointCoopsById, setMapPointCoopsById] = useState<Record<number, Cooperative>>({});
   const [editableCaregivers, setEditableCaregivers] = useState<Array<{ id: number; name: string }>>([]);
   const caregiversLoadedRef = useRef(false);
   const caregiversInFlightRef = useRef(false);
@@ -303,6 +304,33 @@ export default function MapaPolskiSection({
       .finally(() => setSelectedPointCoopLoading(false));
   }, [selectedVoivodeship, customPoints, db.cooperatives]);
 
+  useEffect(() => {
+    const idsToFetch = customPoints
+      .map((point) => point.cooperativeId)
+      .filter((id): id is number => Number.isInteger(id) && id > 0)
+      .filter((id) => mapPointCoopsById[id] === undefined);
+    if (!idsToFetch.length) return;
+
+    let cancelled = false;
+    void Promise.allSettled(idsToFetch.map((id) => getCooperativeById(id)))
+      .then((results) => {
+        if (cancelled) return;
+        const loaded: Record<number, Cooperative> = {};
+        results.forEach((result) => {
+          if (result.status === 'fulfilled') loaded[result.value.id] = result.value;
+        });
+        if (!Object.keys(loaded).length) return;
+        setMapPointCoopsById((prev) => ({ ...prev, ...loaded }));
+      })
+      .catch(() => {
+        // ignore loading errors and keep fallback behavior
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [customPoints, mapPointCoopsById]);
+
   const grouped = useMemo(() => {
     const coopByVoiv = new Map<string, AppDatabase['cooperatives']>();
     const areasByVoiv = new Map<string, AppDatabase['areas']>();
@@ -362,25 +390,27 @@ export default function MapaPolskiSection({
         ? customPoints.find((point) => String(point.id) === voiv.id) ?? null
         : null;
       const linkedCoop = linkedPoint?.cooperativeId
-        ? db.cooperatives.find((coop) => coop.id === linkedPoint.cooperativeId) ?? null
+        ? mapPointCoopsById[linkedPoint.cooperativeId]
+          ?? db.cooperatives.find((coop) => coop.id === linkedPoint.cooperativeId)
+          ?? null
         : null;
-      const linkedOpiekun =
-        linkedCoop?.supervisor
-          ? `${linkedCoop.supervisor.name} ${linkedCoop.supervisor.surname}`.trim()
-          : linkedCoop?.caregiverId
-            ? (() => {
-                const caregiver = db.caregivers.find((item) => item.id === linkedCoop.caregiverId);
-                return caregiver ? caregiver.name.trim() : null;
-              })()
-            : null;
+      const linkedCaregiverId = linkedCoop?.supervisorId ?? linkedCoop?.caregiverId ?? null;
+      const linkedCaregiver = linkedCaregiverId
+        ? db.caregivers.find((item) => item.id === linkedCaregiverId) ?? null
+        : null;
+      const linkedOpiekun = linkedCoop?.supervisor
+        ? `${linkedCoop.supervisor.name} ${linkedCoop.supervisor.surname}`.trim()
+        : linkedCaregiver?.name?.trim() || null;
       const linkedAreasCount = linkedCoop?.areas?.length ?? 0;
       const leadExists = db.voivodeshipLeads.some(
         (lead) => lead.voivodeshipId === voiv.id && lead.caregiverId !== null,
       );
       const fallbackVoivColor = caregiversCount > 0 || leadExists ? '#10b981' : '#ef4444';
       const fillColor =
-        voiv.isCustom && linkedPoint?.color?.trim()
-          ? linkedPoint.color.trim()
+        voiv.isCustom && linkedCaregiver?.color?.trim()
+          ? linkedCaregiver.color.trim()
+          : voiv.isCustom && linkedPoint?.color?.trim()
+            ? linkedPoint.color.trim()
           : fallbackVoivColor;
 
       const marker = L.circleMarker(voiv.center, {
@@ -400,7 +430,7 @@ export default function MapaPolskiSection({
       marker.addTo(markersLayer);
     });
 
-  }, [allPoints, customPoints, db.caregivers, db.cooperatives, db.voivodeshipLeads, grouped]);
+  }, [allPoints, customPoints, db.caregivers, db.cooperatives, db.voivodeshipLeads, grouped, mapPointCoopsById]);
 
   useEffect(() => {
     const map = mapRef.current;
