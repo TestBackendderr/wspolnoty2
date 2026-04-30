@@ -307,7 +307,7 @@ export default function MapaPolskiSection({
   useEffect(() => {
     const idsToFetch = customPoints
       .map((point) => point.cooperativeId)
-      .filter((id): id is number => Number.isInteger(id) && id > 0)
+      .filter((id): id is number => typeof id === 'number' && Number.isInteger(id) && id > 0)
       .filter((id) => mapPointCoopsById[id] === undefined);
     if (!idsToFetch.length) return;
 
