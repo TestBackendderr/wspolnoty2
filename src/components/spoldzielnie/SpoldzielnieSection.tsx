@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 
 import CooperativesTable from '@/components/common/CooperativesTable';
 import { VOIVODESHIPS } from '@/constants/voivodeships';
 import {
   cooperativeMemberFormToPayload,
+  createCooperative,
   listCooperatives,
   updateCooperative,
   deleteCooperative,
@@ -91,6 +92,39 @@ function formatDateTime(iso: string): { date: string; time: string } {
   };
 }
 
+function normalizeVoivodeship(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ł/g, 'l')
+    .replace(/\s+/g, '-');
+}
+
+function resolveVoivodeshipMeta(voivodeshipLabel: string): { id: string; label: string } {
+  const normalizedTarget = normalizeVoivodeship(voivodeshipLabel);
+  const matched = VOIVODESHIPS.find((entry) => normalizeVoivodeship(entry) === normalizedTarget);
+  return {
+    id: matched ? normalizeVoivodeship(matched) : normalizedTarget,
+    label: matched ?? voivodeshipLabel,
+  };
+}
+
+async function geocodeAddress(address: string, voivodeship: string): Promise<{ lat: number; lng: number }> {
+  const query = `${address}, ${voivodeship}, Polska`;
+  const res = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=pl&q=${encodeURIComponent(query)}`,
+    { headers: { 'User-Agent': 'crm-energy-app/1.0' } },
+  );
+  if (!res.ok) throw new Error('geocode_failed');
+  const data = await res.json() as Array<{ lat?: string; lon?: string }>;
+  const first = data[0];
+  const lat = Number(first?.lat);
+  const lng = Number(first?.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error('geocode_not_found');
+  return { lat, lng };
+}
+
 /** When `cooperatives` prop is passed, lista pochodzi z rodzica (np. „Moje spółdzielnie”); zapis idzie do API, potem `onCooperativeSaved`. */
 interface SpoldzielnieSectionProps {
   cooperatives?: Cooperative[];
@@ -103,7 +137,6 @@ export default function SpoldzielnieSection({
   onCooperativeSaved,
   onDeleteCooperative: onDeleteCooperativeProp,
 }: SpoldzielnieSectionProps) {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'admin';
@@ -141,6 +174,7 @@ export default function SpoldzielnieSection({
     status: 'planowana' as Cooperative['status'],
   });
   const [saving, setSaving] = useState(false);
+  const [createSaving, setCreateSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [caregivers, setCaregivers] = useState<Array<{ id: number; name: string }>>([]);
   const [areas, setAreas] = useState<Array<{ id: number; name: string }>>([]);
@@ -220,7 +254,6 @@ export default function SpoldzielnieSection({
   }, [searchParams, setSearchParams]);
 
   // ── add cooperative ───────────────────────────────────────────────────────
-  // Creation always goes through /mapa?pendingCoop=1 flow (point must be selected on map).
 
   useEffect(() => {
     if (!createOpen && !editing) return;
@@ -295,14 +328,49 @@ export default function SpoldzielnieSection({
       return;
     }
 
-    // Both admin and caregiver flows use map point selection before creation.
-    localStorage.setItem('pending_coop_v1', JSON.stringify({
-      ...createValues,
-      selectedAreaIds,
-      members: createMembers,
-    }));
-    closeCreate();
-    navigate('/mapa?pendingCoop=1');
+    setActionError('');
+    setCreateSaving(true);
+    void (async () => {
+      try {
+        const coords = await geocodeAddress(createValues.address.trim(), createValues.voivodeship);
+        const voivMeta = resolveVoivodeshipMeta(createValues.voivodeship);
+        const plannedPower = Number(createValues.plannedPower);
+        const installedPower = Number(createValues.installedPower);
+
+        const created = await createCooperative({
+          name: createValues.name.trim(),
+          address: createValues.address.trim(),
+          region: createValues.voivodeship,
+          ratedPower: Number.isFinite(plannedPower) ? plannedPower : 0,
+          ...(Number.isFinite(installedPower) && installedPower > 0 ? { installedPower } : {}),
+          boardName: createValues.boardName.trim(),
+          boardEmail: createValues.boardEmail.trim(),
+          boardPhone: createValues.boardPhone.trim(),
+          supervisorId: Number(createValues.caregiverId),
+          registrationDate: createValues.registrationDate,
+          ...(selectedAreaIds.length > 0 ? { areaIds: selectedAreaIds } : {}),
+          ...(createMembers.length > 0 ? { members: stableSortedMemberPayloads(createMembers) } : {}),
+          mapPoint: {
+            name: createValues.name.trim(),
+            lat: coords.lat,
+            lng: coords.lng,
+            voivodeshipId: voivMeta.id,
+            voivodeshipLabel: voivMeta.label,
+          },
+        });
+
+        closeCreate();
+        if (selfFetch) {
+          await fetchCooperatives();
+        } else {
+          await onCooperativeSaved?.(created.id);
+        }
+      } catch {
+        setActionError('Nie udało się automatycznie ustawić punktu na mapie z adresu. Sprawdź adres i spróbuj ponownie.');
+      } finally {
+        setCreateSaving(false);
+      }
+    })();
   };
 
   const openMembersModalForCreate = () => {
@@ -857,8 +925,8 @@ export default function SpoldzielnieSection({
                 <button className="primary-outline-btn" onClick={closeCreate} type="button">
                   Anuluj
                 </button>
-                <button className="primary-btn" type="submit">
-                  Dalej — wybór punktu na mapie
+                <button className="primary-btn" type="submit" disabled={createSaving}>
+                  {createSaving ? 'Tworzenie...' : 'Zapisz spółdzielnię'}
                 </button>
               </div>
             </form>
